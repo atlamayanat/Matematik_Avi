@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Matematik Avı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Tam-ekran arka plan yıldız alanı (sahnenin arkasında) -->
+  <canvas id="mh-stars-page"></canvas>
+
+  <!-- Letterbox'lı sabit 16:9 sahne. container-type:size -> cqmin = sahnenin küçük kenarının %1'i. -->
+  <div id="stage">
+
+    <!-- perspektif ızgara (merkeze maskeli) -->
+    <div class="mh-grid"></div>
+
+    <!-- ============ ATTRACT ============ -->
+    <section id="screen-attract" class="screen">
+      <div id="mh-floaters"></div>
+      <div class="attract-col">
+        <div class="title">MATEMATİK AVI</div>
+        <div class="subtitle">Seviyeni seç</div>
+        <div class="diffs" id="mh-diffs">
+          <div class="diff-wrap">
+            <div class="diff" data-diff="kolay" style="--c:0,235,255;--col:#7df3ff;">KOLAY</div>
+            <div class="diff-cap">ilkokul · ortaokul</div>
+          </div>
+          <div class="diff-wrap">
+            <div class="diff" data-diff="orta" style="--c:159,95,255;--col:#b98cff;">ORTA</div>
+            <div class="diff-cap">ortaokul · lise</div>
+          </div>
+          <div class="diff-wrap">
+            <div class="diff" data-diff="zor" style="--c:255,74,214;--col:#ff8fe4;">ZOR</div>
+            <div class="diff-cap">lise · üniversite</div>
+          </div>
+        </div>
+        <div class="hint"><span class="dot"></span>Merceği bir seviyeye getir ve elini kapat</div>
+      </div>
+    </section>
+
+    <!-- ============ PLAYING ============ -->
+    <section id="screen-playing" class="screen">
+      <!-- HUD: sayaçlar sol-üst -->
+      <div class="hud-left">
+        <div class="hud-line" id="mh-progress">SORU 1/5 · <span class="lvl">KOLAY</span></div>
+        <div class="hud-line">DOĞRU <span id="mh-score">00</span></div>
+        <div id="mh-timer">2:00</div>
+      </div>
+      <!-- HUD: soru üst-orta -->
+      <div class="hud-prompt">
+        <div id="mh-prompt">—</div>
+      </div>
+      <!-- HUD: RESET sağ-üst (gerçek köşe) -->
+      <div id="mh-reset" data-reset="1">↻ RESET</div>
+
+      <!-- token alanı -->
+      <div id="mh-field"></div>
+
+      <!-- merkez flaş -->
+      <div id="mh-flash"></div>
+    </section>
+
+    <!-- ============ RESULT ============ -->
+    <section id="screen-result" class="screen">
+      <div class="result-box">
+        <div class="result-kicker">— Tur Bitti —</div>
+        <div id="mh-result-msg">Bitti!</div>
+        <div class="result-score">
+          <span class="lab">Doğru</span>
+          <span id="mh-result-num">0/5</span>
+        </div>
+        <div class="result-foot">Başlangıç ekranına dönülüyor…</div>
+      </div>
+    </section>
+
+    <!-- ============ LENS (kursör) ============ -->
+    <div id="mh-lens">
+      <div class="lens-pool"></div>
+      <div id="mh-iris">
+        <div class="iris-ring chroma-c"></div>
+        <div class="iris-ring chroma-m"></div>
+        <div class="iris-ring main"></div>
+        <div class="iris-core"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/questions.js"></script>
+  <script src="js/tokens.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/lens.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

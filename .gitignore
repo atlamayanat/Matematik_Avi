@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Model (re-download with: python download_model.py)
+python/models/*.task
+
+# Per-site calibration (regenerate with: python main.py --calibrate)
+python/calib.json
+
+# Unity (if you turn unity/ into a full project)
+unity/Library/
+unity/Temp/
+unity/Obj/
+unity/Build/
+unity/Logs/
+unity/UserSettings/
+*.csproj
+*.sln
+
+# Python virtual environments (custom-named; see .venv/ venv/ above)
+tools/genv/
+tools/imgenv/
+
+# Runtime logs and scratch output
+python/*.log
+python/*.log.err
+python/_vs_*.txt

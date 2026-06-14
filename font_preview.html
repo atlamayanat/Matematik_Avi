@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matematik Avı — Font Seçimi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&family=Lilita+One&family=Chewy&family=Nunito:wght@700;800;900&family=Poppins:wght@500;600;700&family=Quicksand:wght@500;600;700&family=Paytone+One&family=Comfortaa:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#ffe680; --sky:#e0eeff; --green:#4ccb72; --orange:#f2735a; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px;
+    background: radial-gradient(1200px 700px at 30% 20%, #16213e 0%, #0b1020 55%, #05060d 100%);
+    color: #eaf0ff; font-family: system-ui, sans-serif;
+  }
+  h1 { text-align:center; font-weight:800; letter-spacing:.5px; margin:0 0 6px; }
+  .lead { text-align:center; opacity:.75; margin:0 0 26px; font-size:15px; }
+  .legend { text-align:center; opacity:.6; font-size:13px; margin-bottom:30px; }
+  .legend b { color: var(--gold); }
+  .grid { display:flex; flex-direction:column; gap:22px; max-width:1100px; margin:0 auto; }
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+    border: 1px solid rgba(255,255,255,.08); border-radius:18px; padding:22px 26px;
+    position:relative; overflow:hidden;
+  }
+  .card::after {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(600px 200px at 85% -40%, rgba(120,150,255,.10), transparent 70%);
+  }
+  .tag {
+    position:absolute; top:16px; right:18px; font-family:system-ui; font-size:12px;
+    padding:3px 10px; border-radius:20px; background:rgba(255,255,255,.08); opacity:.85;
+  }
+  .tag.fun  { background:rgba(242,115,90,.22);  color:#ffb9a6; }
+  .tag.read { background:rgba(76,203,114,.20);  color:#a8f0bf; }
+  .tag.pick { background:rgba(255,214,90,.20);  color:#ffe680; }
+  .fname { font-family:system-ui; font-size:13px; opacity:.55; margin-bottom:14px; letter-spacing:1px; text-transform:uppercase; }
+  .title { font-size:54px; line-height:1.05; color:var(--gold); font-weight:700; margin:0 0 6px;
+            text-shadow:0 0 24px rgba(255,210,90,.25); }
+  .hint  { font-size:22px; color:var(--sky); opacity:.92; margin:0 0 16px; }
+  .row   { display:flex; flex-wrap:wrap; align-items:center; gap:18px 26px; margin:10px 0; }
+  .prompt{ font-size:40px; font-weight:700; color:#fff; }
+  .tok   { font-size:34px; font-weight:600; color:#cfe0ff;
+           border:2px solid rgba(255,255,255,.16); border-radius:50%;
+           width:74px; height:74px; display:flex; align-items:center; justify-content:center; }
+  .tok.correct { color:var(--gold); border-color:rgba(255,214,90,.5); box-shadow:0 0 22px rgba(255,214,90,.25); }
+  .ui    { font-size:24px; }
+  .ui .doğru { color:var(--green); }
+  .ui .timer { color:#ff6a6a; font-weight:700; }
+  .btn   { display:inline-flex; align-items:center; justify-content:center;
+           padding:10px 30px; border-radius:40px; font-size:26px; font-weight:700; color:#06210f; }
+  .btn.basla { background:linear-gradient(180deg,#5fe08e,#39b86a); }
+  .btn.reset { background:linear-gradient(180deg,#ff8e7a,#ef6f52); color:#3a0f08; }
+  .mathtest { font-family:system-ui; font-size:13px; opacity:.55; margin-top:14px; }
+  .mathtest .glyphs { font-size:30px; opacity:1; color:#dfe7ff; letter-spacing:6px; }
+
+  /* ---- font classes ---- */
+  .f-fredoka  .title,.f-fredoka  .hint,.f-fredoka  .prompt,.f-fredoka  .tok,.f-fredoka  .ui,.f-fredoka  .btn,.f-fredoka  .glyphs { font-family:'Fredoka',sans-serif; }
+  .f-baloo    .title,.f-baloo    .hint,.f-baloo    .prompt,.f-baloo    .tok,.f-baloo    .ui,.f-baloo    .btn,.f-baloo    .glyphs { font-family:'Baloo 2',sans-serif; }
+  .f-lilita   .title,.f-lilita   .hint,.f-lilita   .prompt,.f-lilita   .tok,.f-lilita   .ui,.f-lilita   .btn,.f-lilita   .glyphs { font-family:'Lilita One',sans-serif; }
+  .f-chewy    .title,.f-chewy    .hint,.f-chewy    .prompt,.f-chewy    .tok,.f-chewy    .ui,.f-chewy    .btn,.f-chewy    .glyphs { font-family:'Chewy',sans-serif; }
+  .f-paytone  .title,.f-paytone  .hint,.f-paytone  .prompt,.f-paytone  .tok,.f-paytone  .ui,.f-paytone  .btn,.f-paytone  .glyphs { font-family:'Paytone One',sans-serif; }
+  .f-nunito   .title,.f-nunito   .hint,.f-nunito   .prompt,.f-nunito   .tok,.f-nunito   .ui,.f-nunito   .btn,.f-nunito   .glyphs { font-family:'Nunito',sans-serif; }
+  .f-poppins  .title,.f-poppins  .hint,.f-poppins  .prompt,.f-poppins  .tok,.f-poppins  .ui,.f-poppins  .btn,.f-poppins  .glyphs { font-family:'Poppins',sans-serif; }
+  .f-quicksand.title,.f-quicksand .title,.f-quicksand .hint,.f-quicksand .prompt,.f-quicksand .tok,.f-quicksand .ui,.f-quicksand .btn,.f-quicksand .glyphs { font-family:'Quicksand',sans-serif; }
+  .f-comfortaa .title,.f-comfortaa .hint,.f-comfortaa .prompt,.f-comfortaa .tok,.f-comfortaa .ui,.f-comfortaa .btn,.f-comfortaa .glyphs { font-family:'Comfortaa',sans-serif; }
+</style>
+</head>
+<body>
+  <h1>🔎 Matematik Avı — Font Seçimi</h1>
+  <p class="lead">Aşağıdaki her kart, oyundaki gerçek yazıları o fontta gösterir. Beğendiğinin adını bana söyle.</p>
+  <p class="legend">⚠️ <b>□ kutu</b> görürsen o font o sembolü <b>içermiyor</b> demektir (matematik oyununda kötü). Özellikle alttaki <b>√ ∞ π</b> satırına bak.</p>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const fonts = [
+      { cls:'f-fredoka',   name:'Fredoka',     tag:'fun',  tagtxt:'Eğlenceli + okunur' },
+      { cls:'f-baloo',     name:'Baloo 2',     tag:'fun',  tagtxt:'Tombul / çocuksu' },
+      { cls:'f-lilita',    name:'Lilita One',  tag:'fun',  tagtxt:'Poster / başlık enerjisi' },
+      { cls:'f-chewy',     name:'Chewy',       tag:'fun',  tagtxt:'Balon / çizgi film' },
+      { cls:'f-paytone',   name:'Paytone One', tag:'fun',  tagtxt:'Kalın yuvarlak' },
+      { cls:'f-nunito',    name:'Nunito',      tag:'pick', tagtxt:'★ En geniş sembol desteği' },
+      { cls:'f-poppins',   name:'Poppins',     tag:'read', tagtxt:'Modern / sade' },
+      { cls:'f-quicksand', name:'Quicksand',   tag:'read', tagtxt:'İnce geometrik' },
+      { cls:'f-comfortaa', name:'Comfortaa',   tag:'read', tagtxt:'Yumuşak yuvarlak' },
+    ];
+    const tpl = (f) => `
+      <div class="card ${f.cls}">
+        <span class="tag ${f.tag}">${f.tagtxt}</span>
+        <div class="fname">${f.name}</div>
+        <div class="title">MATEMATİK AVI</div>
+        <div class="hint">Merceği BAŞLA'ya getir, elini kapat</div>
+        <div class="row">
+          <span class="prompt">12 × 5 = ?</span>
+          <span class="tok">7</span>
+          <span class="tok correct">60</span>
+          <span class="tok">√2</span>
+          <span class="tok">½</span>
+          <span class="tok">¾</span>
+          <span class="tok">π</span>
+          <span class="tok">x²</span>
+        </div>
+        <div class="row ui">
+          <span>Soru 1/5</span>
+          <span class="doğru">Doğru: 3</span>
+          <span class="timer">0:09</span>
+          <span class="btn basla">BAŞLA</span>
+          <span class="btn reset">RESET</span>
+        </div>
+        <div class="mathtest">Sembol testi: <span class="glyphs">√ ∞ π ² ³ ½ ¼ ¾ × ÷ − ± ≈ % =</span></div>
+      </div>`;
+    document.getElementById('grid').innerHTML = fonts.map(tpl).join('');
+  </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+mouse_cheese.png is composited from OpenMoji emoji (mouse 1F401, cheese 1F9C0).
+OpenMoji - the open-source emoji and icon project. License: CC BY-SA 4.0.
+https://openmoji.org/  https://creativecommons.org/licenses/by-sa/4.0/
+
+spotlight_circle.png, spotlight_ring.png, net.png are generated procedurally for this project (no third-party rights).
