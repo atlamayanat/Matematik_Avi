@@ -4,21 +4,18 @@
     "port": 9000,
     "send_rate_hz": 60
   },
-
   "net": {
     "transport": "ws",
     "ws_host": "0.0.0.0",
     "ws_port": 8765
   },
-
   "camera": {
     "source": "webcam",
-    "device_index": 0,
+    "device_index": 1,
     "request_width": 960,
     "request_height": 540,
     "flip_horizontal": true
   },
-
   "detection": {
     "model_path": "models/gesture_recognizer.task",
     "num_hands": 2,
@@ -27,44 +24,38 @@
     "min_tracking_confidence": 0.4,
     "gesture_min_score": 0.5
   },
-
   "active_player": {
     "enter_size": 0.115,
     "exit_size": 0.085,
-    "max_size": 0.60,
-    "roi_x_min": 0.10,
-    "roi_x_max": 0.90,
+    "max_size": 0.6,
+    "roi_x_min": 0.1,
+    "roi_x_max": 0.9,
     "roi_y_min": 0.05,
     "roi_y_max": 0.95,
     "steal_ratio": 1.4,
     "steal_frames": 8,
     "lost_frames_to_release": 16,
-    "assoc_max_jump": 0.20
+    "assoc_max_jump": 0.2
   },
-
   "gesture_fsm": {
     "stable_frames_enter": 5,
     "stable_frames_fist": 6
   },
-
   "smoothing": {
     "min_cutoff": 1.0,
     "beta": 0.4,
     "d_cutoff": 1.0
   },
-
   "calibration": {
     "file": "calib.json",
     "proj_w": 1920,
     "proj_h": 1080
   },
-
   "depth": {
     "enabled": false,
     "z_min_m": 0.8,
     "z_max_m": 1.8
   },
-
   "preview": {
     "enabled": true,
     "window_name": "Gesture Exhibit - Detector"

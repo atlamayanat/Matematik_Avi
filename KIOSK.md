@@ -101,5 +101,6 @@ gömün (gelecek iş; şu an çevrimiçi varsayılıyor).
 | WebSocket | `ws://<host>:8765` |
 | Mouse test | `http://localhost:8000/` |
 | Teşhis | `python tools\ws_sniff.py` |
+| Kamera seç/değiştir | `Kamera-Ayarlari.bat` (canlı önizleme + kaydet) |
 | Çıkış | ESC (veya Alt+F4) |
 | Detektör (elle) | `cd python; python main.py [--no-preview] [--calibrate]` |
