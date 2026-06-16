@@ -7,7 +7,10 @@
   // ---- Otoriter kurallar (RoundManager.cs) ----
   const RULES = {
     totalQuestions: 5, roundSeconds: 120, correctCopies: 3, totalTokens: 36,
-    decoyVariety: 14, lowTimeThreshold: 10, resolveDelay: 0.85, endSummarySeconds: 4,
+    decoyVariety: 14, lowTimeThreshold: 10, resolveDelay: 0.85, endSummarySeconds: 6,
+    // Puan: her doğru sabit puan + kalan süre bonusu. Bonus doğruluk oranıyla
+    // çarpılır -> hızlı ama yanlış = bonus yok; hızlı ve doğru = maksimum.
+    pointsPerCorrect: 100, timeBonusPerSec: 5,
   };
   const ARM_ATTRACT = 0.13 * world.W; // prototip 0.13*width -> dünya birimi (~2.31)
   const ARM_RESET = 1.6;
@@ -18,7 +21,7 @@
     screen: "attract",
     difficulty: "kolay",
     problem: null,
-    qNum: 0, correct: 0, timeLeft: 0, running: false, locked: false,
+    qNum: 0, correct: 0, score: 0, timeLeft: 0, running: false, locked: false,
     _prevFist: false, _armedDiff: null, _armedReset: false,
     _endTimer: null, _resolveTimer: null,
     _diffWorld: [], _resetWorld: null,  // buton merkezleri (cache; resize'da yenilenir)
@@ -59,6 +62,8 @@
     selector.suspend();
     MA.tokens.clearField();
     setScreen("attract");
+    MA.leaderboard.render($("mh-lb-list"), G._lbHighlight || 0);  // tabloyu güncelle, yeni kaydı vurgula
+    G._lbHighlight = 0;
     computeDiffCenters();
   }
 
@@ -71,8 +76,8 @@
   }
 
   function beginRound() {
-    G.qNum = 1; G.correct = 0; G.timeLeft = RULES.roundSeconds; G.running = true; G.locked = false;
-    updateCorrect(); updateTimer();
+    G.qNum = 1; G.correct = 0; G.score = 0; G.timeLeft = RULES.roundSeconds; G.running = true; G.locked = false;
+    updateCorrect(); updateLiveScore(0, false); updateTimer();
     nextQuestion();
   }
 
@@ -92,6 +97,7 @@
     if (ok) { G.correct++; flash("Doğru!", "var(--green)"); }
     else { flash("Yanlış", "var(--red)"); }
     updateCorrect();
+    updateLiveScore(G.correct * RULES.pointsPerCorrect, ok); // taban puan = doğru × 100; bonus bitişte eklenir
     G.locked = true;
     G._resolveTimer = setTimeout(() => {
       G._resolveTimer = null;
@@ -102,15 +108,76 @@
     }, RULES.resolveDelay * 1000);
   }
 
+  function computeScore() {
+    const remaining = Math.max(0, G.timeLeft);
+    const accuracy = RULES.totalQuestions > 0 ? G.correct / RULES.totalQuestions : 0;
+    const timeBonus = Math.round(remaining * RULES.timeBonusPerSec * accuracy);
+    return G.correct * RULES.pointsPerCorrect + timeBonus;
+  }
+  function fmtTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+  }
+
   function endRound(timeout) {
     G.running = false;
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; } // sarkan resolve'u temizle
     selector.suspend();
     MA.tokens.clearField();
+
+    G.score = computeScore();
+    const base = G.correct * RULES.pointsPerCorrect;   // oyun içi gösterilen taban puan
+    const elapsed = RULES.roundSeconds - G.timeLeft;   // oyunu tamamlama süresi
+
     $("mh-result-msg").textContent = timeout ? "Süre doldu!" : "Bitti!";
     $("mh-result-num").textContent = `${G.correct}/${RULES.totalQuestions}`;
+    $("mh-result-time").textContent = fmtTime(elapsed);
     setScreen("result");
+    animateScore(G.score, base);   // taban puandan başlat -> zaman bonusu eklenirken say
+
+    const lb = MA.leaderboard.add(G.score);   // isimsiz kayıt + sıralama
+    G._lbHighlight = lb.top3 ? lb.rank : 0;    // attract'a dönünce vurgulanacak satır
+    showResultRank(lb);
+
     G._endTimer = setTimeout(enterAttract, RULES.endSummarySeconds * 1000);
+  }
+
+  // Final puanı 0'dan hedefe say (easeOutCubic). Yeni tur eski animasyonu iptal eder.
+  let _scoreGen = 0;
+  function animateScore(target, from) {
+    from = from || 0;
+    const el = $("mh-result-score");
+    if (!el) return;
+    el.textContent = String(from);
+    const gen = ++_scoreGen, dur = 900, t0 = performance.now();
+    (function step(now) {
+      if (gen !== _scoreGen) return;                     // sonraki tur devraldı
+      const k = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      el.textContent = String(Math.round(from + (target - from) * e));
+      if (k < 1) requestAnimationFrame(step);
+      else el.textContent = String(target);
+    })(performance.now());
+  }
+
+  // Sonuç ekranı: skor ilk 3'e girdiyse kutlama, değilse sade sıralama satırı.
+  function showResultRank(lb) {
+    const el = $("mh-result-rank");
+    if (!el) return;
+    el.classList.remove("show", "celebrate");
+    void el.offsetWidth;                                  // sınıfı sıfırla -> animasyon tekrar tetiklensin
+    if (lb.top3) {
+      const medal = lb.rank === 1 ? "🥇" : lb.rank === 2 ? "🥈" : "🥉";
+      el.textContent = lb.rank === 1
+        ? `${medal} En yüksek puanı yaptın!`
+        : `${medal} En yüksek ${lb.rank}. puanı yaptın!`;
+      el.classList.add("show", "celebrate");
+    } else if (lb.score > 0) {
+      el.textContent = `Sıralaman: ${lb.rank}.`;
+      el.classList.add("show");
+    } else {
+      el.textContent = "";
+    }
   }
 
   // ---- her kare (lens.js çağırır) ----
@@ -170,6 +237,12 @@
 
   // ---- UI ----
   function updateCorrect() { $("mh-score").textContent = String(G.correct).padStart(2, "0"); }
+  function updateLiveScore(val, bump) {
+    const el = $("mh-live-score");
+    if (!el) return;
+    el.textContent = String(val);
+    if (bump) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } // reflow -> animasyonu yeniden tetikle
+  }
   function updateTimer() {
     const s = Math.ceil(G.timeLeft);
     $("mh-timer").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");

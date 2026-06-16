@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <!-- Tam-ekran arka plan yıldız alanı (sahnenin arkasında) -->
@@ -22,6 +22,11 @@
     <!-- ============ ATTRACT ============ -->
     <section id="screen-attract" class="screen">
       <div id="mh-floaters"></div>
+      <!-- isimsiz liderlik tablosu (ilk 3) -->
+      <aside class="leaderboard" id="mh-leaderboard">
+        <div class="lb-title">LİDERLİK</div>
+        <ol class="lb-list" id="mh-lb-list"></ol>
+      </aside>
       <div class="attract-col">
         <div class="title">MATEMATİK AVI</div>
         <div class="subtitle">Seviyeni seç</div>
@@ -49,6 +54,7 @@
       <div class="hud-left">
         <div class="hud-line" id="mh-progress">SORU 1/5 · <span class="lvl">KOLAY</span></div>
         <div class="hud-line">DOĞRU <span id="mh-score">00</span></div>
+        <div class="hud-line">PUAN <span id="mh-live-score">0</span></div>
         <div id="mh-timer">2:00</div>
       </div>
       <!-- HUD: soru üst-orta -->
@@ -70,9 +76,20 @@
       <div class="result-box">
         <div class="result-kicker">— Tur Bitti —</div>
         <div id="mh-result-msg">Bitti!</div>
-        <div class="result-score">
-          <span class="lab">Doğru</span>
-          <span id="mh-result-num">0/5</span>
+        <div class="result-rank" id="mh-result-rank"></div>
+        <div class="result-points">
+          <span id="mh-result-score">0</span>
+          <span class="pts">PUAN</span>
+        </div>
+        <div class="result-stats">
+          <div class="result-score">
+            <span class="lab">Doğru</span>
+            <span id="mh-result-num">0/5</span>
+          </div>
+          <div class="result-score">
+            <span class="lab">Süre</span>
+            <span id="mh-result-time">0:00</span>
+          </div>
         </div>
         <div class="result-foot">Başlangıç ekranına dönülüyor…</div>
       </div>
@@ -90,10 +107,11 @@
     </div>
   </div>
 
-  <script src="js/questions.js"></script>
-  <script src="js/tokens.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/lens.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/questions.js?v=2"></script>
+  <script src="js/tokens.js?v=2"></script>
+  <script src="js/input.js?v=2"></script>
+  <script src="js/lens.js?v=2"></script>
+  <script src="js/leaderboard.js?v=2"></script>
+  <script src="js/game.js?v=2"></script>
 </body>
 </html>
