@@ -1,14 +1,17 @@
-"""MediaPipe Tasks GestureRecognizer wrapper (LIVE_STREAM mode).
+"""MediaPipe Tasks HandLandmarker wrapper (LIVE_STREAM mode).
 
-One GestureRecognizer gives us, per hand and per frame:
-  * 21 hand landmarks (position),
-  * a canonical gesture label incl. 'Open_Palm' / 'Closed_Fist',
+One HandLandmarker gives us, per hand and per frame:
+  * 21 hand landmarks (image + 3D world position),
   * handedness.
-So we do NOT run a separate HandLandmarker, and we do NOT hand-code fist math.
+There is NO gesture label: open vs fist is derived from the 21-point SKELETON
+geometry (orientation/scale-invariant, see _curled_finger_count). That geometry
+was already the PRIMARY open/fist signal under the old GestureRecognizer path;
+dropping the classifier head only removes a small ensemble bonus and lightens
+inference (HandLandmarker is GestureRecognizer minus the gesture head).
 
-LIVE_STREAM is asynchronous: recognize_async() returns immediately and the
-result is delivered later to a callback on a MediaPipe worker thread. We stash
-the latest result under a lock; the main loop reads it (latest-value-wins).
+LIVE_STREAM is asynchronous: detect_async() returns immediately and the result
+is delivered later to a callback on a MediaPipe worker thread. We stash the
+latest result under a lock; the main loop reads it (latest-value-wins).
 """
 
 from __future__ import annotations
@@ -38,8 +41,9 @@ _FINGER_JOINTS = (
 )
 # A finger is "curled" when its tip->MCP straight line is much shorter than the
 # summed joint path (i.e. the finger folds back). This ratio is invariant to hand
-# ORIENTATION and SCALE, so a fist is recognized sideways / upside-down / angled,
-# unlike MediaPipe's canned 'Closed_Fist' label (trained mostly on facing hands).
+# ORIENTATION and SCALE, so a fist is recognized sideways / upside-down / angled.
+# It is now the SOLE open/fist signal (no MediaPipe 'Closed_Fist' label exists on
+# HandLandmarker); tune _FIST_CURL_RATIO if facing-hand fists read late.
 _FIST_CURL_RATIO = 0.55   # straight/path below this = curled finger
 _FIST_MIN_CURLED = 3      # >= this many curled fingers (of 4) = fist
 
@@ -67,17 +71,16 @@ class HandRecognizer:
         model_path = cfg.detection.model_path
         if not os.path.isfile(model_path):
             raise FileNotFoundError(
-                f"Gesture model not found: {model_path!r}. "
-                f"Run  python download_model.py  to fetch gesture_recognizer.task."
+                f"Hand model not found: {model_path!r}. "
+                f"Run  python download_model.py  to fetch hand_landmarker.task."
             )
 
         self._lock = threading.Lock()
-        self._latest: Optional[mp_vision.GestureRecognizerResult] = None
+        self._latest: Optional[mp_vision.HandLandmarkerResult] = None
         self._result_id = 0  # bumped on each callback; lets the loop skip duplicate frames
         self._frame_wh: Optional[tuple[int, int]] = None
-        self._gesture_min_score = float(cfg.detection.gesture_min_score)
 
-        options = mp_vision.GestureRecognizerOptions(
+        options = mp_vision.HandLandmarkerOptions(
             base_options=mp_python.BaseOptions(model_asset_path=model_path),
             running_mode=mp_vision.RunningMode.LIVE_STREAM,
             num_hands=int(cfg.detection.num_hands),
@@ -86,7 +89,7 @@ class HandRecognizer:
             min_tracking_confidence=float(cfg.detection.min_tracking_confidence),
             result_callback=self._on_result,  # REQUIRED for LIVE_STREAM
         )
-        self._recognizer = mp_vision.GestureRecognizer.create_from_options(options)
+        self._landmarker = mp_vision.HandLandmarker.create_from_options(options)
 
     # --- MediaPipe worker thread: just stash the newest result -------------
     def _on_result(self, result, output_image, timestamp_ms):  # noqa: ANN001
@@ -108,7 +111,7 @@ class HandRecognizer:
         h, w = rgb_frame.shape[:2]
         self._frame_wh = (w, h)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        self._recognizer.recognize_async(mp_image, timestamp_ms)
+        self._landmarker.detect_async(mp_image, timestamp_ms)
 
     def get_observations(self) -> List[HandObservation]:
         """Convert the latest stashed result into HandObservation objects."""
@@ -137,26 +140,15 @@ class HandRecognizer:
             # Orientation-invariant fist detection from the hand SKELETON.
             # Prefer 3D world landmarks (metric, orientation-aware); fall back to
             # the normalized image landmarks if world landmarks are unavailable.
+            # HandLandmarker has no gesture label, so this geometry IS the signal.
             skel = landmarks
             if (i < len(result.hand_world_landmarks)
                     and result.hand_world_landmarks[i]):
                 skel = result.hand_world_landmarks[i]
             curled = _curled_finger_count(skel)
-            geom_fist = curled >= _FIST_MIN_CURLED
-
-            # Ensemble: also trust MediaPipe's own Closed_Fist label when it is
-            # confident. The curl geometry catches angled / sideways / upside-down
-            # hands the model misses; the model catches facing hands cleanly. OR-ing
-            # them makes their blind spots non-overlapping, so open vs fist reads
-            # reliably at ANY orientation and for ANY hand size / any person.
-            mp_score = 0.0
-            if i < len(result.gestures) and result.gestures[i]:
-                top = result.gestures[i][0]
-                if top.category_name == "Closed_Fist" and top.score >= self._gesture_min_score:
-                    mp_score = top.score
-            is_fist = geom_fist or mp_score > 0.0
+            is_fist = curled >= _FIST_MIN_CURLED
             gesture = "Closed_Fist" if is_fist else "Open_Palm"
-            gscore = max(curled / 4.0, mp_score)
+            gscore = curled / 4.0
 
             handedness = "Unknown"
             det_score = 0.0
@@ -178,6 +170,6 @@ class HandRecognizer:
         return observations
 
     def close(self) -> None:
-        if self._recognizer is not None:
-            self._recognizer.close()
-            self._recognizer = None
+        if self._landmarker is not None:
+            self._landmarker.close()
+            self._landmarker = None

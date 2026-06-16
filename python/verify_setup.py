@@ -1,6 +1,6 @@
 """Smoke test: construct every pipeline component (no camera needed).
 
-Validates that dependencies are installed, the MediaPipe Tasks GestureRecognizer
+Validates that dependencies are installed, the MediaPipe Tasks HandLandmarker
 API names/params are correct, the model loads, and all modules wire together.
 
 Run:  python verify_setup.py
@@ -25,7 +25,7 @@ def main() -> int:
     cfg = load_config("config.json")
     print("config.json loaded OK")
 
-    # 1. MediaPipe GestureRecognizer (LIVE_STREAM) + model file.
+    # 1. MediaPipe HandLandmarker (LIVE_STREAM) + model file.
     rec = HandRecognizer(cfg)
     fake_rgb = np.zeros((cfg.camera.request_height, cfg.camera.request_width, 3),
                         dtype=np.uint8)
@@ -33,7 +33,7 @@ def main() -> int:
     time.sleep(0.2)                      # let the async callback run
     _ = rec.get_observations()           # empty (black frame), but must not raise
     rec.close()
-    print("MediaPipe GestureRecognizer constructed, fed a frame, closed OK")
+    print("MediaPipe HandLandmarker constructed, fed a frame, closed OK")
 
     # 2. Selection + FSM logic with synthetic hands.
     sel = ActivePlayerSelector(cfg)
@@ -45,14 +45,21 @@ def main() -> int:
             gesture=gesture, gesture_score=0.9, handedness="Right",
             detection_score=0.9, landmarks_px=[(int(x * 1280), int(y * 720))] * 21)
 
-    # A big central hand should get locked; a tiny edge hand should not steal.
+    # With two hands the NEAREST (largest) one is chosen; an edge hand is out of ROI.
     big = fake_hand(0.5, 0.5, 0.30, "Open_Palm")
     small = fake_hand(0.95, 0.5, 0.05, "Open_Palm")
     res = None
     for _ in range(5):
         res = sel.update([big, small])
-    assert res.locked is big, "selector should lock the large central hand"
-    print("ActivePlayerSelector locks the largest in-ROI hand OK")
+    assert res.locked is big, "selector should lock the nearest (largest) in-ROI hand"
+    print("ActivePlayerSelector locks the nearest in-ROI hand OK")
+
+    # No distance lock: a LONE far/small hand must still be tracked.
+    sel_far = ActivePlayerSelector(cfg)
+    far = fake_hand(0.5, 0.5, 0.03, "Open_Palm")   # tiny span = far away
+    res_far = sel_far.update([far])
+    assert res_far.locked is far, "a lone far hand must stay selectable (no distance lock)"
+    print("Lone far hand stays tracked (distance lock removed) OK")
 
     # FSM should require several stable fist frames before committing.
     state = SEARCHING

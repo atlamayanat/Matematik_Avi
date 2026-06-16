@@ -68,9 +68,9 @@ Tüm parametreler `config.json` içinde. En çok dokunacakların:
 | `camera` | `device_index` | Birden çok kamera varsa hangisi (0,1,...). |
 | `camera` | `flip_horizontal` | Ayna düzeltmesi. El sağa giderken daire sola kayıyorsa değiştir. |
 | `detection` | `num_hands` | Kalabalıkta aday el sayısı (2–4 önerilir). |
-| `active_player` | `enter_size`/`exit_size` | Kilitlenme histerezisi (giriş > çıkış). El "çok uzakta sayılıyor"sa düşür. |
+| `active_player` | `max_size` | Sadece üst sınır (lense yapışan el reddi). **Mesafe (alt) kilidi yok** — tek el uzaktan da seçilir; menzili artık MediaPipe `detection`/`tracking` güveni belirler. |
 | `active_player` | `roi_*` | Etkileşim bölgesi; kenardaki izleyici ellerini ele. |
-| `active_player` | `steal_ratio`/`steal_frames` | Başka oyuncunun kontrolü ne kadar zor devralacağı. |
+| `active_player` | `steal_ratio`/`steal_frames` | 2 el varken yakındakine geçiş ne kadar zor (titremeyi önleyen histerezis). |
 | `gesture_fsm` | `stable_frames_*` | Jest titremesini önleme (artır = daha kararlı, daha yavaş). |
 | `smoothing` | `min_cutoff`/`beta` | Bkz. aşağıdaki One Euro ayarı. |
 
@@ -83,9 +83,10 @@ Tüm parametreler `config.json` içinde. En çok dokunacakların:
 
 ## Sorun giderme
 
-- **`Gesture model not found`** → `python download_model.py` çalıştır.
+- **`Hand model not found`** → `python download_model.py` çalıştır.
+- **El belli bir uzaklıktan sonra algılanmıyor** → mesafe kilidi kaldırıldı; menzil artık MediaPipe güvenine bağlı. Daha uzağı için `detection.min_hand_detection_confidence` ve `min_tracking_confidence`'ı düşür (ör. 0.45→0.3); çok düşürmek hayalet algılama yapar.
 - **Kamera açılmıyor** → başka uygulama kamerayı kullanıyor olabilir; `device_index`'i dene.
 - **Daire ters yönde** → `camera.flip_horizontal`'ı veya Unity'de `SpotlightController.flipY`'yi değiştir; kalibrasyonu flip değiştikten sonra **tekrar** yap.
 - **`import mediapipe` hatası** → yukarıdaki Python 3.12 sanal ortam notuna bak.
 - **Daire titriyor / geç kalıyor** → One Euro ayarı (yukarı).
-- **Daire arka plandaki birine atlıyor** → `active_player.steal_ratio`'yu artır, `roi_*` bölgesini daralt, `enter_size`'ı yükselt.
+- **Daire arka plandaki birine atlıyor** → `active_player.steal_ratio`'yu artır (yakındaki elin devralması zorlaşır), `roi_*` bölgesini daralt. (Not: mesafe kilidi kaldırıldığı için uzaktaki tek el de seçilir; tek oyuncu senaryosunda bu istenen davranıştır.)

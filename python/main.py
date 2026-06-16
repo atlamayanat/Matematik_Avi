@@ -1,7 +1,7 @@
 """Gesture Exhibit - detection entry point.
 
 Pipeline per frame:
-    camera -> GestureRecognizer -> active-player selection -> gesture FSM
+    camera -> HandLandmarker -> active-player selection -> gesture FSM
            -> homography map -> One Euro smoothing -> OSC /hand -> Unity
 
 Usage (run from this 'python/' folder):
@@ -34,9 +34,29 @@ from net import create_sender
 _QUIT = "quit"
 _RECALIBRATE = "recalibrate"
 
+# MediaPipe Hands 21-point skeleton topology (drawn in the preview overlay).
+_HAND_CONNECTIONS = (
+    (0, 1), (1, 2), (2, 3), (3, 4),            # thumb
+    (0, 5), (5, 6), (6, 7), (7, 8),            # index
+    (5, 9), (9, 10), (10, 11), (11, 12),       # middle
+    (9, 13), (13, 14), (14, 15), (15, 16),     # ring
+    (13, 17), (17, 18), (18, 19), (19, 20),    # pinky
+    (0, 17),                                   # palm base
+)
+
+
+def _draw_skeleton(bgr, landmarks_px, color):
+    """Draw the 21-point hand skeleton: connection lines + joint dots."""
+    n = len(landmarks_px)
+    for a, b in _HAND_CONNECTIONS:
+        if a < n and b < n:
+            cv2.line(bgr, landmarks_px[a], landmarks_px[b], color, 2, cv2.LINE_AA)
+    for p in landmarks_px:
+        cv2.circle(bgr, p, 3, color, -1, cv2.LINE_AA)
+
 
 class MonotonicMs:
-    """Strictly increasing millisecond clock for recognize_async timestamps."""
+    """Strictly increasing millisecond clock for detect_async timestamps."""
     def __init__(self):
         self._last = -1
 
@@ -66,6 +86,9 @@ def _draw_overlay(bgr, cfg, observations, sel, committed, present,
         x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
         is_locked = locked is not None and obs is locked
         color = (0, 255, 0) if is_locked else (130, 130, 130)
+        # Hand skeleton: fist -> magenta, open -> the lock colour above.
+        skel_color = (255, 0, 255) if obs.gesture == "Closed_Fist" else color
+        _draw_skeleton(bgr, obs.landmarks_px, skel_color)
         cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2 if is_locked else 1)
         label = f"{obs.gesture} {obs.gesture_score:.2f} sz{obs.span01:.2f}"
         cv2.putText(bgr, label, (x1, max(y1 - 8, 12)),

@@ -1,7 +1,7 @@
 """Config loader.
 
 Loads ``config.json`` into a nested attribute-accessible object so the rest of
-the code can write ``cfg.active_player.enter_size`` instead of dict indexing.
+the code can write ``cfg.active_player.max_size`` instead of dict indexing.
 All tunable parameters live in the JSON file; nothing is hardcoded elsewhere.
 """
 

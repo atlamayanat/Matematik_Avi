@@ -1,20 +1,19 @@
-"""Active-player selection with lock-on hysteresis.
+"""Active-player selection: always track the NEAREST hand, at ANY distance.
 
-A single RGB camera in a tent sees the player's hand AND the hands of people
-waiting/watching behind. This picks exactly one hand to drive the cursor and
-sticks to it, so the spotlight never teleports to a bystander.
+A single RGB camera sees the player's hand and possibly bystanders. Policy:
+  1. NO distance floor - whenever MediaPipe detects a hand, one is selected. A
+     lone hand stays tracked however far it is; only MediaPipe's own detection
+     confidence limits range (there is no minimum-size / "too far" rejection).
+  2. NEAREST wins - among several hands, pick the largest apparent size
+     (wrist->middle-MCP span is the only distance proxy from one RGB camera), so
+     the front-most player drives the cursor.
+  3. STABLE lock - keep identity by nearest-centroid association; release only
+     after the hand is gone for K frames (NOT for shrinking/going far); a clearly
+     nearer challenger (steal_ratio x for several frames) can take over, so the
+     cursor doesn't flip-flop between two people standing at similar distance.
 
-Four mechanisms (all per-frame, cheap):
-  1. SIZE gate - apparent hand size (wrist->middle-MCP span) is the only distance
-     proxy from one RGB camera. Reject hands smaller than exit_size (too far) or
-     larger than max_size (shoved onto the lens).
-  2. ROI gate - reject hands near the frame edges where bystanders lean in.
-  3. LOCK-ON + hysteresis - acquire only above enter_size; keep the lock until the
-     hand is lost for K frames or shrinks below exit_size (enter > exit). Maintain
-     identity frame-to-frame by nearest-centroid association within a max jump.
-  4. CHALLENGER STEAL - another hand can take over only if it is clearly larger
-     (steal_ratio x) for several consecutive frames, so a player must deliberately
-     step closer to take control.
+Remaining gates are NOT about distance: ROI rejects hands at the frame edges,
+and max_size rejects a hand shoved onto the lens.
 """
 
 from __future__ import annotations
@@ -40,8 +39,6 @@ def _dist(a, b) -> float:
 class ActivePlayerSelector:
     def __init__(self, cfg):
         ap = cfg.active_player
-        self.enter_size = float(ap.enter_size)
-        self.exit_size = float(ap.exit_size)
         self.max_size = float(ap.max_size)
         self.roi = (float(ap.roi_x_min), float(ap.roi_x_max),
                     float(ap.roi_y_min), float(ap.roi_y_max))
@@ -61,9 +58,11 @@ class ActivePlayerSelector:
         return xmin <= x <= xmax and ymin <= y <= ymax
 
     def _candidates(self, hands: List[HandObservation]) -> List[HandObservation]:
-        # Floor at exit_size (not enter_size) so a locked hand survives down to exit.
+        # NO lower size bound -> a lone/far hand stays selectable (MediaPipe's own
+        # detection confidence is the only range limit now). Keep the upper bound
+        # (hand shoved onto the lens) and the ROI gate (edge bystanders).
         return [h for h in hands
-                if self.exit_size < h.span01 < self.max_size and self._in_roi(h)]
+                if h.span01 < self.max_size and self._in_roi(h)]
 
     # --- main update ------------------------------------------------------
     def update(self, hands: List[HandObservation]) -> SelectionResult:
@@ -74,10 +73,10 @@ class ActivePlayerSelector:
         return self._track_locked(cands)
 
     def _try_acquire(self, cands: List[HandObservation]) -> SelectionResult:
-        eligible = [h for h in cands if h.span01 >= self.enter_size]
-        if not eligible:
+        if not cands:
             return SelectionResult(None, False, False)
-        self._locked = max(eligible, key=lambda h: h.span01)
+        # Front-most = largest apparent hand; any detected hand qualifies.
+        self._locked = max(cands, key=lambda h: h.span01)
         self._lost = 0
         self._steal = 0
         return SelectionResult(self._locked, True, False)
@@ -93,8 +92,9 @@ class ActivePlayerSelector:
                 best = d
                 match = h
 
-        if match is None or match.span01 < self.exit_size:
-            # Losing the hand: count frames before releasing (hysteresis).
+        if match is None:
+            # Hand gone (out of frame / not detected): hold the last hand, then
+            # release after K frames. We do NOT release for being far/small.
             self._lost += 1
             if self._lost >= self.lost_frames_to_release:
                 self._locked = None

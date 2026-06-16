@@ -2,7 +2,7 @@
 # Python 3.10 - 3.13 (mediapipe 0.10.35 ships a py3 wheel that installs on 3.13;
 # if import fails at runtime on your machine, use a 3.12 venv - see README).
 
-mediapipe==0.10.35        # Tasks Vision GestureRecognizer (Open_Palm / Closed_Fist + landmarks)
+mediapipe==0.10.35        # Tasks Vision HandLandmarker (21-point landmarks; open/fist from skeleton geometry)
 opencv-python>=4.9        # webcam capture, homography, preview window
 Pillow>=10                # camera_settings.py canlı önizleme (PIL.Image / ImageTk)
 numpy>=1.26               # array math (also a mediapipe dependency)
