@@ -4,7 +4,9 @@
   const MA = (window.MA = window.MA || {});
   const world = MA.world;
 
-  const LENS_SMOOTH = 0.22; // tasarım değeri (pos += (target-pos)*0.22 / kare)
+  const LENS_SMOOTH = 0.22;     // dwell (yavaş) yumuşatma — sabit imleç
+  const LENS_MAX_SMOOTH = 0.6;  // hızlı/ani harekette yükselir — gecikmeyi keser
+  const LENS_FAR = 0.18;        // hedefe bu normalize mesafede tam responsif
 
   // ---- LensHunt: token seçim beyni (Unity birebir) ----
   class LensHunt {
@@ -123,8 +125,13 @@
       hand._ghostFist = g.fist; // game kendi ghost-fist'ini okur
     }
 
-    // üstel yumuşatma (frame-rate bağımsız: 0.22 = 60Hz/kare faktörü -> 120/144Hz'de de aynı his)
-    const a = 1 - Math.pow(1 - LENS_SMOOTH, dt / (1 / 60));
+    // Adaptif üstel yumuşatma (frame-rate bağımsız). Dwell'de düşük (sabit imleç),
+    // hedef uzaklaştıkça (hızlı/ani hareket) yükselir -> gecikmeyi keser. Python
+    // One-Euro sinyali zaten temizlediği için uzaktayken sıkı takip jitter yapmaz.
+    const gap = Math.hypot(tx - lx, ty - ly);
+    const sm = Math.min(LENS_MAX_SMOOTH,
+                        LENS_SMOOTH + (LENS_MAX_SMOOTH - LENS_SMOOTH) * (gap / LENS_FAR));
+    const a = 1 - Math.pow(1 - sm, dt / (1 / 60));
     lx += (tx - lx) * a;
     ly += (ty - ly) * a;
 

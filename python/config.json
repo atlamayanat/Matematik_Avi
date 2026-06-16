@@ -35,7 +35,7 @@
     "steal_ratio": 1.4,
     "steal_frames": 8,
     "lost_frames_to_release": 16,
-    "assoc_max_jump": 0.2
+    "assoc_max_jump": 0.4
   },
   "gesture_fsm": {
     "stable_frames_enter": 5,
@@ -43,13 +43,27 @@
   },
   "smoothing": {
     "min_cutoff": 1.0,
-    "beta": 0.4,
+    "beta": 0.6,
     "d_cutoff": 1.0
   },
   "calibration": {
     "file": "calib.json",
     "proj_w": 1920,
-    "proj_h": 1080
+    "proj_h": 1080,
+    "grid": [
+      3,
+      3
+    ],
+    "stage_aspect": [
+      16,
+      9
+    ],
+    "target_inset": 0.06,
+    "cursor_gain": 1.5,
+    "dwell_seconds": 1.5,
+    "dwell_radius": 0.05,
+    "display_offset_x": 0,
+    "accept_error": 0.03
   },
   "depth": {
     "enabled": false,

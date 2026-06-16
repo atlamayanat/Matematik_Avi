@@ -93,6 +93,9 @@ def run_detector(cfg, preview: bool) -> str:
     cam = create_camera(cfg)
     recognizer = HandRecognizer(cfg)
     homography = Homography(cfg)
+    # Saved calibration is tied to the camera resolution + mirroring it was built
+    # with; if either changed, the px coords no longer line up -> warn loudly.
+    homography.warn_if_environment_changed(cam.resolution, cfg.camera.flip_horizontal)
     selector = ActivePlayerSelector(cfg)
     fsm = GestureFSM(cfg)
     smoother = CursorSmoother(cfg.smoothing.min_cutoff, cfg.smoothing.beta,
