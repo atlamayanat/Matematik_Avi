@@ -4,6 +4,7 @@
 
 mediapipe==0.10.35        # Tasks Vision GestureRecognizer (Open_Palm / Closed_Fist + landmarks)
 opencv-python>=4.9        # webcam capture, homography, preview window
+Pillow>=10                # camera_settings.py canlı önizleme (PIL.Image / ImageTk)
 numpy>=1.26               # array math (also a mediapipe dependency)
 python-osc>=1.8           # OSC 1.0 encoding that Unity/OscJack expects
 websockets>=12            # tarayıcı WebSocket köprüsü (net/ws_sender.py); SADECE config.json net.transport = ws|both iken gerekir

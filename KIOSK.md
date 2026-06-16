@@ -7,11 +7,20 @@ Mimari: **Python detektörü** (el takibi) → **WebSocket** → **tarayıcı** 
 
 ## 1. Tek seferlik hazırlık
 
+> **Yeni bir PC'de en kolay yol:** önce [Python 3.13](https://www.python.org/downloads/)'ü
+> kur ("Add python.exe to PATH" kutusunu **işaretle**), sonra kökteki **`Kurulum.bat`**'a çift tıkla.
+> Bu, aşağıdaki iki adımı (paketler + model) senin yerine yapar.
+
+Elle yapmak istersen:
 ```powershell
 cd python
-pip install -r requirements.txt          # mediapipe, opencv, websockets, ...
+pip install -r requirements.txt          # mediapipe, opencv, Pillow, websockets, ...
 python download_model.py                  # gesture_recognizer.task modelini indir
 ```
+
+> **Not:** `.bat` dosyaları "açılmıyor / pencere parlayıp kapanıyor" → o makinede Python
+> kurulu değil ya da paketler eksik demektir (VSCode eklentisiyle ilgisi yok). `Kurulum.bat`
+> bunu çözer; `Kamera-Ayarlari.bat` artık eksikse uyarı verip bekler.
 
 `python/config.json` içinde transport'u WebSocket'e al:
 ```json
