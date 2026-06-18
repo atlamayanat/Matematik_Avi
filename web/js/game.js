@@ -6,14 +6,18 @@
 
   // ---- Otoriter kurallar (RoundManager.cs) ----
   const RULES = {
-    totalQuestions: 5, roundSeconds: 120, correctCopies: 3, totalTokens: 36,
+    roundSeconds: 120, correctCopies: 3, totalTokens: 36,
     decoyVariety: 14, lowTimeThreshold: 10, resolveDelay: 0.85, endSummarySeconds: 6,
-    // Puan: her doğru sabit puan + kalan süre bonusu. Bonus doğruluk oranıyla
-    // çarpılır -> hızlı ama yanlış = bonus yok; hızlı ve doğru = maksimum.
-    pointsPerCorrect: 100, timeBonusPerSec: 5,
   };
+  // Puan (çocuk-dostu dopamin): zorluğa göre taban × ardışık doğruda büyüyen kombo çarpanı.
+  // Yanlışta puan DÜŞMEZ; sadece kombo sıfırlanır (cesaret kırıcı olmasın).
+  const SCORE = { base: { kolay: 20, orta: 40, zor: 80 }, comboCap: 5 };
   const ARM_ATTRACT = 0.13 * world.W; // prototip 0.13*width -> dünya birimi (~2.31)
   const ARM_RESET = 1.6;
+
+  // Adaptif zorluk: her doğru +1 seviye, her yanlış -1 (en az 0).
+  // Eşik = bu seviyeden itibaren ilgili basamak. Kolayca ayarlanır.
+  const RAMP = { orta: 3, zor: 6 };
 
   const selector = new MA.LensHunt();
 
@@ -21,10 +25,11 @@
     screen: "attract",
     difficulty: "kolay",
     problem: null,
-    qNum: 0, correct: 0, score: 0, timeLeft: 0, running: false, locked: false,
-    _prevFist: false, _armedDiff: null, _armedReset: false,
-    _endTimer: null, _resolveTimer: null,
-    _diffWorld: [], _resetWorld: null,  // buton merkezleri (cache; resize'da yenilenir)
+    seen: 0, correct: 0, level: 0, combo: 0, score: 0, timeLeft: 0,
+    running: false, locked: false, counting: false,
+    _prevFist: false, _armedStart: false, _armedReset: false,
+    _endTimer: null, _resolveTimer: null, _countTimer: null, _pendingTokens: null,
+    _startWorld: null, _resetWorld: null,  // buton merkezleri (cache; resize'da yenilenir)
   };
   MA.game = G;
 
@@ -45,75 +50,122 @@
   }
   function centerWorld(el) { const n = centerNorm(el); return world.normToWorld(n.x, n.y); }
 
-  // Buton dünya-merkezlerini cache'le (her kare getBoundingClientRect = layout thrash).
-  function computeDiffCenters() {
-    G._diffWorld = Array.from(document.querySelectorAll("#mh-diffs .diff")).map((el) => {
-      const c = centerWorld(el);
-      return { el, diff: el.getAttribute("data-diff"), wx: c.x, wy: c.y };
-    });
-  }
+  // Buton dünya-merkezini cache'le (her kare getBoundingClientRect = layout thrash).
+  function computeStartCenter() { const c = centerWorld($("mh-start")); G._startWorld = { wx: c.x, wy: c.y }; }
   function computeResetCenter() { const c = centerWorld($("mh-reset")); G._resetWorld = { wx: c.x, wy: c.y }; }
 
   // ---- durumlar ----
   function enterAttract() {
     if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
-    G.running = false; G.locked = false; G._armedDiff = null; G._armedReset = false;
+    if (G._countTimer) { clearTimeout(G._countTimer); G._countTimer = null; }
+    G.running = false; G.locked = false; G.counting = false; G._armedStart = false; G._armedReset = false;
     selector.suspend();
     MA.tokens.clearField();
+    const cd = $("mh-countdown"); if (cd) cd.classList.remove("show");
     setScreen("attract");
     MA.leaderboard.render($("mh-lb-list"), G._lbHighlight || 0);  // tabloyu güncelle, yeni kaydı vurgula
     G._lbHighlight = 0;
-    computeDiffCenters();
+    computeStartCenter();
   }
 
-  function startGame(d) {
+  // BAŞLA -> oyun ekranına geç, ilk soruyu arkada sönük göster, 3-2-1 say, sonra canlandır.
+  function startCountdown() {
     if (G.screen === "playing") return;
-    G.difficulty = d;
     setScreen("playing");
     computeResetCenter();
-    beginRound();
-  }
-
-  function beginRound() {
-    G.qNum = 1; G.correct = 0; G.score = 0; G.timeLeft = RULES.roundSeconds; G.running = true; G.locked = false;
+    // tur durumu sıfırla (geri sayım boyunca donuk)
+    G.correct = 0; G.seen = 0; G.level = 0; G.combo = 0; G.score = 0;
+    G.timeLeft = RULES.roundSeconds;
+    G.running = false; G.locked = true; G.counting = true;
     updateCorrect(); updateLiveScore(0, false); updateTimer();
-    nextQuestion();
+    spawnQuestion(false);                 // ilk soruyu arka planda göster (sönük), seçim kapalı
+
+    const seq = ["3", "2", "1", "BAŞLA!"];
+    let i = 0;
+    const step = () => {
+      if (G.screen !== "playing" || !G.counting) return;   // RESET/çıkış olduysa iptal
+      if (i < seq.length) {
+        const isGo = i === seq.length - 1;
+        showCount(seq[i], isGo);
+        i++;
+        G._countTimer = setTimeout(step, isGo ? 650 : 1000);
+      } else {
+        const cd = $("mh-countdown"); if (cd) cd.classList.remove("show");
+        G._countTimer = null;
+        goLive();
+      }
+    };
+    step();
   }
 
-  function nextQuestion() {
+  function showCount(txt, isGo) {
+    const cd = $("mh-countdown");
+    if (!cd) return;
+    cd.classList.add("show");
+    let span = cd.querySelector(".cd-num");
+    if (!span) { span = document.createElement("div"); span.className = "cd-num"; cd.appendChild(span); }
+    span.textContent = txt;
+    span.classList.toggle("go", !!isGo);
+    span.classList.remove("anim"); void span.offsetWidth; span.classList.add("anim");  // animasyonu yeniden tetikle
+  }
+
+  // Geri sayım bitti: sayaç + token seçimi başlasın.
+  function goLive() {
+    if (G.screen !== "playing") return;
+    G.counting = false; G.running = true; G.locked = false;
+    if (G._pendingTokens) { selector.setTokens(G._pendingTokens); G._pendingTokens = null; }
+    updateTimer();
+  }
+
+  // Seviye -> zorluk basamağı (doğru bildikçe yükselir, yanlışta bir kademe iner).
+  function tierFromLevel(lv) {
+    if (lv >= RAMP.zor) return "zor";
+    if (lv >= RAMP.orta) return "orta";
+    return "kolay";
+  }
+
+  // activate=true: seçim açık. activate=false: soruyu hazırla ama cevaplar gizli (geri sayım), seçim kapalı.
+  function spawnQuestion(activate) {
+    G.difficulty = tierFromLevel(G.level);
     G.problem = Q.next(G.difficulty);
     const decoys = Q.makeDecoys(G.problem, RULES.decoyVariety);
     const tokens = MA.tokens.genField(G.problem, decoys, RULES.correctCopies, RULES.totalTokens);
-    selector.setTokens(tokens);
-    G.locked = false;
-    $("mh-prompt").textContent = G.problem.prompt;
-    $("mh-progress").innerHTML = `SORU ${G.qNum}/${RULES.totalQuestions} · <span class="lvl">${d2name(G.difficulty)}</span>`;
+    G.seen++;
+    $("mh-prompt").innerHTML = Q.promptHTML(G.problem.prompt);
+    $("mh-progress").innerHTML = `SORU ${G.seen} · <span class="lvl">${d2name(G.difficulty)}</span>`;
+    if (activate) {
+      selector.setTokens(tokens);
+      G.locked = false;
+    } else {
+      selector.suspend();
+      G._pendingTokens = tokens;   // geri sayımda cevaplar GİZLİ kalır (oyun mantığı); yalnızca soru görünür
+    }
   }
   function d2name(d) { return d === "orta" ? "ORTA" : d === "zor" ? "ZOR" : "KOLAY"; }
 
   function onAnswer(ok) {
     if (G.screen !== "playing" || !G.running) return;
-    if (ok) { G.correct++; flash("Doğru!", "var(--green)"); }
-    else { flash("Yanlış", "var(--red)"); }
+    if (ok) {
+      G.correct++; G.level++; G.combo++;                          // zora doğru; kombo çarpanı GİZLİ büyür
+      const mult = Math.min(G.combo, SCORE.comboCap);
+      G.score += (SCORE.base[G.difficulty] || SCORE.base.kolay) * mult;  // yanlışta puan DÜŞMEZ
+      flash("Doğru!", "var(--green)");                            // merkezde sadece olumlama (puan/kombo gösterilmez)
+    } else {
+      G.combo = 0;                                                // kombo sıfırlanır
+      G.level = Math.max(0, G.level - 1);                         // bir kademe kolaya
+      flash("Yanlış", "var(--red)");
+    }
     updateCorrect();
-    updateLiveScore(G.correct * RULES.pointsPerCorrect, ok); // taban puan = doğru × 100; bonus bitişte eklenir
+    updateLiveScore(G.score, ok);
     G.locked = true;
     G._resolveTimer = setTimeout(() => {
       G._resolveTimer = null;
       if (G.screen !== "playing" || !G.running) return; // pause sırasında reset/timeout olduysa
-      G.qNum++;
-      if (G.qNum > RULES.totalQuestions) endRound(false);
-      else nextQuestion();
+      spawnQuestion(true);   // soru sınırı yok: süre dolana kadar yeni soru gelir
     }, RULES.resolveDelay * 1000);
   }
 
-  function computeScore() {
-    const remaining = Math.max(0, G.timeLeft);
-    const accuracy = RULES.totalQuestions > 0 ? G.correct / RULES.totalQuestions : 0;
-    const timeBonus = Math.round(remaining * RULES.timeBonusPerSec * accuracy);
-    return G.correct * RULES.pointsPerCorrect + timeBonus;
-  }
   function fmtTime(sec) {
     sec = Math.max(0, Math.floor(sec));
     return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
@@ -125,15 +177,13 @@
     selector.suspend();
     MA.tokens.clearField();
 
-    G.score = computeScore();
-    const base = G.correct * RULES.pointsPerCorrect;   // oyun içi gösterilen taban puan
     const elapsed = RULES.roundSeconds - G.timeLeft;   // oyunu tamamlama süresi
 
     $("mh-result-msg").textContent = timeout ? "Süre doldu!" : "Bitti!";
-    $("mh-result-num").textContent = `${G.correct}/${RULES.totalQuestions}`;
+    $("mh-result-num").textContent = `${G.correct}/${G.seen}`;
     $("mh-result-time").textContent = fmtTime(elapsed);
     setScreen("result");
-    animateScore(G.score, base);   // taban puandan başlat -> zaman bonusu eklenirken say
+    animateScore(G.score, 0);   // 0'dan say -> tatmin edici final reveal
 
     const lb = MA.leaderboard.add(G.score);   // isimsiz kayıt + sıralama
     G._lbHighlight = lb.top3 ? lb.rank : 0;    // attract'a dönünce vurgulanacak satır
@@ -207,32 +257,28 @@
       G._armedReset = armR;
 
     } else if (G.screen === "attract") {
-      // zorluk butonu seçimi (cache'li merkezler, en-yakın-yarıçap)
-      let best = null, bestD = ARM_ATTRACT;
-      for (const b of G._diffWorld) {
-        const d = world.dist(ctx.lx, ctx.ly, b.wx, b.wy);
-        if (ctx.present && d <= bestD) { bestD = d; best = b; }
+      // tek BAŞLA butonu: yarıçap içindeyse armed, yumrukta geri sayımı başlat
+      let armed = false;
+      if (ctx.present && G._startWorld &&
+          world.dist(ctx.lx, ctx.ly, G._startWorld.wx, G._startWorld.wy) <= ARM_ATTRACT) {
+        armed = true;
       }
-      for (const b of G._diffWorld) b.el.classList.toggle("armed", !!best && b.el === best.el);
-      G._armedDiff = best ? best.diff : null;
-      if (fistEdge && G._armedDiff) { MA.lens.playSelect(); startGame(G._armedDiff); }
+      const sb = $("mh-start"); if (sb) sb.classList.toggle("armed", armed);
+      G._armedStart = armed;
+      if (fistEdge && armed) { MA.lens.playSelect(); startCountdown(); }
     }
 
     G._prevFist = ctx.fist;
   }
 
-  // ---- attract ghost demo: fantom mercek butonlar arasında gezer (fist YOK) ----
-  let _ghostA = 0, _ghostB = 1, _ghostT = 0;
+  // ---- attract ghost demo: fantom mercek BAŞLA üzerinde hafifçe salınır (fist YOK) ----
   function ghostTarget(timeSec) {
-    const diffs = document.querySelectorAll("#mh-diffs .diff");
-    if (diffs.length < 2) return { x: 0.5, y: 0.5, present: true, fist: false };
-    const period = 3.0; // her butonda ~3s
-    _ghostT += 1 / 60;
-    if (_ghostT >= period) { _ghostT = 0; _ghostA = _ghostB; _ghostB = (_ghostB + 1) % diffs.length; }
-    const a = centerNorm(diffs[_ghostA]), b = centerNorm(diffs[_ghostB]);
-    const k = Math.min(_ghostT / 2.0, 1); // ilk 2s'de geç, sonra beklet
-    const e = k * k * (3 - 2 * k); // smoothstep
-    return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, present: true, fist: false };
+    const el = $("mh-start");
+    if (!el) return { x: 0.5, y: 0.5, present: true, fist: false };
+    const c = centerNorm(el);
+    const bx = Math.sin(timeSec * 0.9) * 0.018;   // yumuşak salınım
+    const by = Math.cos(timeSec * 1.3) * 0.012;
+    return { x: c.x + bx, y: c.y + by, present: true, fist: false };
   }
 
   // ---- UI ----
@@ -243,9 +289,11 @@
     el.textContent = String(val);
     if (bump) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } // reflow -> animasyonu yeniden tetikle
   }
+  let _lastTimerStr = "";
   function updateTimer() {
     const s = Math.ceil(G.timeLeft);
-    $("mh-timer").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    const str = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    if (str !== _lastTimerStr) { $("mh-timer").textContent = str; _lastTimerStr = str; }  // saniye değişmedikçe DOM'a yazma
     $("mh-timer").classList.toggle("low", G.running && G.timeLeft <= RULES.lowTimeThreshold);
   }
   let _flashTimer = null;
@@ -272,7 +320,7 @@
     MA.tokens.buildFloaters();
     window.addEventListener("resize", () => {
       MA.tokens.drawStars();
-      if (G.screen === "attract") computeDiffCenters();
+      if (G.screen === "attract") computeStartCenter();
       else if (G.screen === "playing") computeResetCenter();
     });
     MA.input.start();

@@ -61,18 +61,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   animation:mh-titleglow 4.5s ease-in-out infinite;}
 .subtitle{font-family:'Baloo 2',sans-serif;font-weight:600;font-size:5.8cqmin;color:#cfe9ff;margin-top:0.8cqmin;text-shadow:0 0 18px rgba(0,235,255,0.4);white-space:nowrap;}
-.diffs{display:flex;gap:6cqmin;margin-top:6.5cqmin;}
-.diff-wrap{display:flex;flex-direction:column;align-items:center;gap:1.8cqmin;}
-.diff{position:relative;padding:3.6cqmin 8cqmin;border-radius:999px;
-  background:rgba(var(--c),0.22);border:2px solid rgba(var(--c),0.9);
-  box-shadow:0 0 34px rgba(var(--c),0.55),inset 0 0 24px rgba(var(--c),0.2);
-  font-family:'Baloo 2',sans-serif;font-weight:700;font-size:5.4cqmin;letter-spacing:0.05em;color:var(--col);
-  text-shadow:0 0 20px rgba(var(--c),1);animation:mh-breathe 3.4s ease-in-out infinite;
-  transition:transform 0.12s ease-out, filter 0.12s ease-out;will-change:transform,filter;}
-.diff.armed{animation:none;transform:scale(1.12);filter:brightness(1.25);box-shadow:0 0 40px rgba(var(--c),0.7),inset 0 0 26px rgba(var(--c),0.2);}
-.diff-cap{font-family:'JetBrains Mono',monospace;font-size:2.2cqmin;letter-spacing:0.18em;color:#a8a3d6;text-transform:uppercase;}
 .hint{position:absolute;bottom:6.5cqmin;display:flex;align-items:center;gap:2cqmin;font-family:'JetBrains Mono',monospace;font-size:2cqmin;letter-spacing:0.22em;color:#8f8ac0;text-transform:uppercase;}
 .hint .dot{width:1.2cqmin;height:1.2cqmin;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:mh-pulse-dot 2s ease-in-out infinite;}
+
+/* ----- Tek BAŞLA butonu (zorluk seçimi yerine) — arayüzle uyumlu: Baloo 2 + marka cyan'ı + nefes ----- */
+.start-wrap{margin-top:7cqmin;display:flex;justify-content:center;}
+.start-btn{position:relative;--c:0,235,255;
+  padding:4.2cqmin 12cqmin;border-radius:999px;
+  background:rgba(var(--c),0.18);border:2px solid rgba(var(--c),0.9);
+  box-shadow:0 0 40px rgba(var(--c),0.5),inset 0 0 26px rgba(var(--c),0.2);
+  font-family:'Baloo 2',sans-serif;font-weight:800;font-size:7cqmin;letter-spacing:0.06em;
+  color:#e6fcff;text-shadow:0 0 22px rgba(var(--c),0.9);
+  animation:mh-breathe 3.4s ease-in-out infinite;
+  transition:transform 0.12s ease-out, filter 0.12s ease-out;will-change:transform,filter;}
+.start-btn.armed{animation:none;transform:scale(1.1);filter:brightness(1.25);
+  box-shadow:0 0 52px rgba(var(--c),0.78),inset 0 0 30px rgba(var(--c),0.24);}
 
 /* ----- Liderlik tablosu (attract, sağ-üst köşe — çerçevesiz) ----- */
 .leaderboard{position:absolute;top:3.5cqmin;right:5cqmin;z-index:15;width:24cqmin;}
@@ -104,7 +107,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
 #mh-timer.low{color:var(--red);animation:mh-low 0.9s ease-in-out infinite;}
 .hud-prompt{position:absolute;top:4.5cqmin;left:50%;transform:translateX(-50%);z-index:40;text-align:center;}
 .hud-prompt .kicker{font-family:'JetBrains Mono',monospace;font-size:1.7cqmin;letter-spacing:0.34em;color:#6f6aa0;text-transform:uppercase;margin-bottom:1cqmin;}
-#mh-prompt{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:8.5cqmin;line-height:1;color:#fff;white-space:nowrap;text-shadow:0 0 26px rgba(0,235,255,0.45),0 0 50px rgba(159,95,255,0.3);}
+#mh-prompt{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:10cqmin;line-height:1;color:#fff;white-space:nowrap;text-shadow:0 0 26px rgba(0,235,255,0.45),0 0 50px rgba(159,95,255,0.3);}
+/* operatör renkleri — çocuklar için ayırt edici (rakamlar beyaz kalır) */
+#mh-prompt .op{font-weight:800;}
+#mh-prompt .op-add{color:#34F5A6;}   /* + yeşil */
+#mh-prompt .op-sub{color:#FF9F6B;}   /* − turuncu */
+#mh-prompt .op-mul{color:#4FE3FF;}   /* × cyan */
+#mh-prompt .op-div{color:#B98CFF;}   /* ÷ mor */
+#mh-prompt .op-eq{color:#FFC83D;}    /* = altın */
+#mh-prompt .op-root{color:#FF8FE4;}  /* √ macenta */
+#mh-prompt .op-pow{color:#FF8FE4;}   /* ² ³ ! macenta ailesi */
+#mh-prompt .op-paren{color:#A9A4D6;} /* ( ) soluk */
 #mh-reset{position:absolute;top:5cqmin;right:5cqmin;z-index:40;display:flex;align-items:center;gap:1.2cqmin;
   padding:1.6cqmin 3cqmin;border-radius:999px;background:rgba(255,74,214,0.10);border:1px solid rgba(255,74,214,0.45);
   box-shadow:0 0 14px rgba(255,74,214,0.2);font-family:'JetBrains Mono',monospace;font-size:2cqmin;letter-spacing:0.22em;color:#ffb8ec;text-transform:uppercase;
@@ -115,10 +128,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
 .token{position:absolute;transform:translate(-50%,-50%);width:8.6cqmin;height:8.6cqmin;display:flex;align-items:center;justify-content:center;opacity:0;will-change:opacity,transform;}
 .token .t-glow{position:absolute;inset:-32%;border-radius:50%;background:radial-gradient(circle,rgba(120,210,255,0.5),transparent 68%);opacity:0;pointer-events:none;}
 .token .t-ring{position:absolute;inset:2%;border-radius:50%;border:1.5px solid transparent;pointer-events:none;}
-.token .t-glyph{position:relative;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:5.2cqmin;line-height:1;color:var(--token-text);text-shadow:0 0 13px rgba(120,210,255,0.7),0 0 26px rgba(120,210,255,0.3);white-space:nowrap;transition:color 0.12s;}
+.token .t-glyph{position:relative;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:6.6cqmin;line-height:1;color:var(--token-text);text-shadow:0 0 13px rgba(120,210,255,0.7),0 0 26px rgba(120,210,255,0.3);white-space:nowrap;transition:color 0.12s;}
 
 #mh-flash{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
   font-family:'Baloo 2',sans-serif;font-weight:800;font-size:13cqmin;opacity:0;pointer-events:none;}
+
+/* ----- Başlangıç geri sayımı (oyun tahtası arkada görünür) ----- */
+#mh-countdown{position:absolute;inset:0;z-index:48;display:none;align-items:center;justify-content:center;pointer-events:none;
+  background:radial-gradient(ellipse 60% 50% at 50% 50%,rgba(4,2,12,0.35),rgba(4,2,12,0.12));}
+#mh-countdown.show{display:flex;}
+#mh-countdown .cd-num{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:30cqmin;line-height:1;color:#fff;
+  text-shadow:0 0 40px rgba(0,235,255,0.6),0 0 80px rgba(159,95,255,0.4);}
+#mh-countdown .cd-num.go{font-size:16cqmin;color:var(--green-text);
+  text-shadow:0 0 40px rgba(52,245,166,0.7),0 0 80px rgba(52,245,166,0.4);}
+#mh-countdown .cd-num.anim{animation:mh-count-pop 0.95s cubic-bezier(0.2,0,0.2,1) 1;}
+@keyframes mh-count-pop{0%{transform:scale(0.45);opacity:0;}25%{opacity:1;}70%{transform:scale(1.05);opacity:1;}100%{transform:scale(1.18);opacity:0;}}
 
 /* ===== RESULT ===== */
 .result-box{position:absolute;inset:0;z-index:45;display:flex;flex-direction:column;align-items:center;justify-content:center;

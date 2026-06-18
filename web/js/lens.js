@@ -4,6 +4,25 @@
   const MA = (window.MA = window.MA || {});
   const world = MA.world;
 
+  // ---- (opt-in) FPS ölçer — SADECE ?fps=1 ile çalışır; normal çalışmayı etkilemez ----
+  // Kiosk donanımında doğrulamak için URL'ye ?fps=1 ekle; sol-üstte canlı FPS + en kötü kare süresi.
+  const FPS_ON = new URLSearchParams(location.search).get("fps") === "1";
+  let _fpsEl = null, _accMs = 0, _accN = 0, _worst = 0;
+  function _fpsTick(rawMs) {
+    _accN++; _accMs += rawMs; if (rawMs > _worst) _worst = rawMs;
+    if (_accMs < 1000) return;                       // 1 sn'lik pencere
+    const fps = Math.round(_accN * 1000 / _accMs), worst = Math.round(_worst);
+    const scr = (MA.game && MA.game.screen) || "?";
+    if (!_fpsEl) {
+      _fpsEl = document.createElement("div");
+      _fpsEl.style.cssText = "position:fixed;top:6px;left:6px;z-index:99999;font:700 13px monospace;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px;pointer-events:none;white-space:nowrap;";
+      document.body.appendChild(_fpsEl);
+    }
+    _fpsEl.textContent = fps + " FPS · worst " + worst + "ms · " + scr;
+    _fpsEl.style.color = fps >= 50 ? "#7DFFC4" : fps >= 30 ? "#FFE08A" : "#FF8095";
+    _accMs = 0; _accN = 0; _worst = 0;
+  }
+
   const LENS_SMOOTH = 0.22;     // dwell (yavaş) yumuşatma — sabit imleç
   const LENS_MAX_SMOOTH = 0.6;  // hızlı/ani harekette yükselir — gecikmeyi keser
   const LENS_FAR = 0.18;        // hedefe bu normalize mesafede tam responsif
@@ -110,8 +129,10 @@
   }
 
   function frame(t) {
+    const rawMs = lastT ? (t - lastT) : 16.7;        // ölçüm için ham kare süresi (clamp'siz)
     const dt = lastT ? Math.min((t - lastT) / 1000, 0.05) : 0.016;
     lastT = t;
+    if (FPS_ON) _fpsTick(rawMs);
     const hand = MA.input.hand;
 
     // ghost demo attract'ta el yokken devreye girer

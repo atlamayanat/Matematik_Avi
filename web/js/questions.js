@@ -113,9 +113,11 @@
   }
 
   function next(difficulty) {
-    if (difficulty === "orta") return Medium();
-    if (difficulty === "zor")  return Hard();
-    return Easy();
+    const p = difficulty === "orta" ? Medium() : difficulty === "zor" ? Hard() : Easy();
+    // Denklem değilse (içinde '=' yoksa) "= ?" ekle -> "3 + 5 = ?", "√64 = ?".
+    // Denklemler (örn. "2x + 3 = 11") zaten '=' içerir; onlara dokunma.
+    if (!p.prompt.includes("=")) p.prompt += " = ?";
+    return p;
   }
 
   function shuffle(list) {
@@ -172,7 +174,27 @@
     return list;
   }
 
+  // ---------------- PROMPT RENKLENDİRME ----------------
+  // Operatörleri ayrı renklere boyamak için <span>'lere sarar (çocuklar için ayırt edici).
+  // Rakamlar/operandlar dokunulmadan kalır.
+  // Not: 'x' (bilinmeyen) operatör DEĞİL -> renklenmez, soru parçası gibi beyaz kalır.
+  const OP_CLASS = {
+    "+": "op-add", "−": "op-sub", "-": "op-sub",
+    "×": "op-mul", "÷": "op-div", "=": "op-eq",
+    "√": "op-root", "²": "op-pow", "³": "op-pow", "!": "op-pow",
+    "(": "op-paren", ")": "op-paren",
+  };
+  function escHTML(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function promptHTML(prompt) {
+    let out = "";
+    for (const ch of String(prompt)) {
+      const cls = OP_CLASS[ch];
+      out += cls ? `<span class="op ${cls}">${escHTML(ch)}</span>` : escHTML(ch);
+    }
+    return out;
+  }
+
   const DIFF_NAME = { kolay: "Kolay", orta: "Orta", zor: "Zor" };
 
-  MA.questions = { next, makeDecoys, shuffle, ri, rv, DIFF_NAME };
+  MA.questions = { next, makeDecoys, shuffle, ri, rv, DIFF_NAME, promptHTML };
 })();

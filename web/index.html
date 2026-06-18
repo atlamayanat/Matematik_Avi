@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <!-- Tam-ekran arka plan yıldız alanı (sahnenin arkasında) -->
@@ -29,22 +29,11 @@
       </aside>
       <div class="attract-col">
         <div class="title">MATEMATİK AVI</div>
-        <div class="subtitle">Seviyeni seç</div>
-        <div class="diffs" id="mh-diffs">
-          <div class="diff-wrap">
-            <div class="diff" data-diff="kolay" style="--c:0,235,255;--col:#7df3ff;">KOLAY</div>
-            <div class="diff-cap">ilkokul · ortaokul</div>
-          </div>
-          <div class="diff-wrap">
-            <div class="diff" data-diff="orta" style="--c:159,95,255;--col:#b98cff;">ORTA</div>
-            <div class="diff-cap">ortaokul · lise</div>
-          </div>
-          <div class="diff-wrap">
-            <div class="diff" data-diff="zor" style="--c:255,74,214;--col:#ff8fe4;">ZOR</div>
-            <div class="diff-cap">lise · üniversite</div>
-          </div>
+        <div class="subtitle">Hazır mısın?</div>
+        <div class="start-wrap" id="mh-start-wrap">
+          <div class="start-btn" id="mh-start" data-start="1">BAŞLA</div>
         </div>
-        <div class="hint"><span class="dot"></span>Merceği bir seviyeye getir ve elini kapat</div>
+        <div class="hint"><span class="dot"></span>Merceği BAŞLA'ya getir ve elini kapat</div>
       </div>
     </section>
 
@@ -52,7 +41,7 @@
     <section id="screen-playing" class="screen">
       <!-- HUD: sayaçlar sol-üst -->
       <div class="hud-left">
-        <div class="hud-line" id="mh-progress">SORU 1/5 · <span class="lvl">KOLAY</span></div>
+        <div class="hud-line" id="mh-progress">SORU 1 · <span class="lvl">KOLAY</span></div>
         <div class="hud-line">DOĞRU <span id="mh-score">00</span></div>
         <div class="hud-line">PUAN <span id="mh-live-score">0</span></div>
         <div id="mh-timer">2:00</div>
@@ -69,6 +58,9 @@
 
       <!-- merkez flaş -->
       <div id="mh-flash"></div>
+
+      <!-- başlangıç geri sayımı (oyun tahtası arkada görünür) -->
+      <div id="mh-countdown"><div class="cd-num"></div></div>
     </section>
 
     <!-- ============ RESULT ============ -->
@@ -84,7 +76,7 @@
         <div class="result-stats">
           <div class="result-score">
             <span class="lab">Doğru</span>
-            <span id="mh-result-num">0/5</span>
+            <span id="mh-result-num">0/0</span>
           </div>
           <div class="result-score">
             <span class="lab">Süre</span>
@@ -107,11 +99,11 @@
     </div>
   </div>
 
-  <script src="js/questions.js?v=2"></script>
-  <script src="js/tokens.js?v=2"></script>
+  <script src="js/questions.js?v=4"></script>
+  <script src="js/tokens.js?v=4"></script>
   <script src="js/input.js?v=2"></script>
-  <script src="js/lens.js?v=2"></script>
+  <script src="js/lens.js?v=6"></script>
   <script src="js/leaderboard.js?v=2"></script>
-  <script src="js/game.js?v=2"></script>
+  <script src="js/game.js?v=5"></script>
 </body>
 </html>

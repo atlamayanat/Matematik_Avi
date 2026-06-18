@@ -67,23 +67,35 @@
     tg.textContent = glyph;
     parent.appendChild(el);
 
-    let confirmed = false;
+    let confirmed = false, mode = "", lastR = -1;
+
+    // Sönük (reveal) moduna geçişte SABİT stilleri bir kez yaz (her kare değil).
+    // Böylece her karede 36 token × ~8 stil yazma (paint/recalc thrash) ortadan kalkar.
+    function enterReveal() {
+      if (mode === "reveal") return;
+      mode = "reveal";
+      el.style.transition = "none";
+      glow.style.background = CYAN_GLOW;
+      ring.style.border = "1.5px solid transparent";
+      ring.style.boxShadow = "none";
+      tg.style.color = "var(--token-text)";
+      lastR = -1;   // opacity/transform yeniden yazılsın
+    }
 
     const T = {
       el, wx, wy, correct,
       setReveal(r) {
         if (confirmed) return;
-        el.style.transition = "none";
-        el.style.opacity = r;
+        enterReveal();
+        if (Math.abs(r - lastR) < 0.008) return;   // anlamlı değişim yoksa DOM'a dokunma
+        lastR = r;
+        el.style.opacity = r.toFixed(3);
         el.style.transform = `translate(-50%,-50%) scale(${(0.8 + 0.2 * r).toFixed(3)})`;
         glow.style.opacity = (r * 0.85).toFixed(3);
-        glow.style.background = CYAN_GLOW;
-        ring.style.border = "1.5px solid transparent";
-        ring.style.boxShadow = "none";
-        tg.style.color = "var(--token-text)";
       },
       setArmed(on) {
-        if (confirmed || !on) return;
+        if (confirmed || !on || mode === "armed") return;   // zaten armed -> tekrar yazma
+        mode = "armed";
         el.style.transition = "none";
         el.style.opacity = 1;
         el.style.transform = "translate(-50%,-50%) scale(1.2)";
@@ -94,7 +106,7 @@
         tg.style.color = "var(--gold-text)";
       },
       confirm(ok) {
-        confirmed = true;
+        confirmed = true; mode = "confirmed";
         const glowC = ok ? "rgba(52,245,166,0.55)" : "rgba(255,84,112,0.5)";
         const ringC = ok ? "rgba(52,245,166,0.95)" : "rgba(255,84,112,0.9)";
         el.style.transition = "transform 0.16s cubic-bezier(0.34,1.6,0.6,1)";
@@ -109,21 +121,35 @@
           el.style.transform = `translate(-50%,-50%) scale(${ok ? 1.18 : 1.05})`;
         }, 170);
       },
+      // Havuz: aynı DOM öğesini yeni soru için yeniden kullan (her soruda sil+yarat YOK -> GC azalır).
+      reset(g, nx, ny, isCorrect) {
+        T.wx = nx; T.wy = ny; T.correct = isCorrect;
+        const p = world.toPct(nx, ny);
+        el.style.left = p.left.toFixed(3) + "%";
+        el.style.top = p.top.toFixed(3) + "%";
+        tg.textContent = g;
+        confirmed = false; mode = ""; lastR = -1;
+        el.style.transition = "none";
+        el.style.opacity = 0;
+        el.style.transform = "translate(-50%,-50%) scale(0.8)";
+        glow.style.opacity = 0; glow.style.background = CYAN_GLOW;
+        ring.style.border = "1.5px solid transparent"; ring.style.boxShadow = "none";
+        tg.style.color = "var(--token-text)";
+        el.style.display = "";
+      },
+      hide() { confirmed = false; mode = ""; lastR = -1; el.style.transition = "none"; el.style.opacity = 0; },
     };
     return T;
   }
 
-  let _live = [];
+  let _live = [], _pool = [];                  // _pool: yeniden kullanılan token DOM havuzu (en fazla totalTokens)
   function clearField() {
-    const field = document.getElementById("mh-field");
-    for (const t of _live) if (t.el && t.el.parentNode) t.el.parentNode.removeChild(t.el);
+    for (const t of _pool) if (t) t.hide();    // DOM'u SİLME; sadece gizle -> sonraki soruda yeniden kullan
     _live = [];
-    if (field) field.innerHTML = "";
   }
 
-  // MathField.Spawn portu
+  // MathField.Spawn portu — token DOM'u havuzdan yeniden kullanılır (sil+yarat yerine reset).
   function genField(problem, decoys, correctCopies, totalTokens) {
-    clearField();
     const field = document.getElementById("mh-field");
 
     const cells = [];
@@ -141,14 +167,19 @@
     const chosen = cells.slice(0, count);
     const correctIdx = new Set(pickSpread(chosen, correctN));
 
+    _live = [];
     let decoyPtr = 0;
     for (let i = 0; i < count; i++) {
       const isCorrect = correctIdx.has(i);
       const val = isCorrect
         ? problem.answer
         : (decoys && decoys.length > 0 ? decoys[(decoyPtr++) % decoys.length] : "?");
-      _live.push(makeToken(field, val, chosen[i].x, chosen[i].y, isCorrect));
+      let t = _pool[i];
+      if (!t) { t = makeToken(field, val, chosen[i].x, chosen[i].y, isCorrect); _pool[i] = t; }
+      else t.reset(val, chosen[i].x, chosen[i].y, isCorrect);
+      _live.push(t);
     }
+    for (let i = count; i < _pool.length; i++) _pool[i].hide();   // bu soruda kullanılmayan fazlalıkları gizle
     return _live.slice();
   }
 
