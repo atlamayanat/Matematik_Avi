@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
   <!-- Tam-ekran arka plan yıldız alanı (sahnenin arkasında) -->
@@ -97,6 +97,51 @@
         <div class="iris-core"></div>
       </div>
     </div>
+
+    <!-- ============ KALİBRASYON GİRİŞ (ilk karşılama; görseller kalibrasyon-giris.html'den) ============ -->
+    <div class="mk-stage" id="mk-stage">
+
+      <!-- arka plan rakamları -->
+      <div class="mk-floaters" id="mk-floaters" style="position:absolute;inset:0;z-index:5;"></div>
+
+      <!-- üst durum (3 aşama: TARAMA BEKLENİYOR → TARANIYOR · %n → ERİŞİM SAĞLANDI) -->
+      <div id="mk-lock" style="position:absolute;top:6cqmin;left:50%;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:1.6cqmin;font-family:'JetBrains Mono',monospace;font-size:2.1cqmin;letter-spacing:0.34em;color:#7aa9ff;text-transform:uppercase;">
+        <span style="width:1.2cqmin;height:1.2cqmin;border-radius:50%;background:#00EBFF;box-shadow:0 0 12px #00EBFF;animation:mk-pulse-dot 1.6s ease-in-out infinite;"></span>TARAMA BEKLENİYOR
+      </div>
+
+      <!-- merkez kolon -->
+      <div style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+
+        <!-- biyometrik hedef -->
+        <div id="mk-target" style="position:relative;width:36cqmin;height:36cqmin;display:flex;align-items:center;justify-content:center;will-change:transform;transition:transform 0.25s cubic-bezier(.2,.9,.25,1);">
+          <!-- yumuşak halo -->
+          <div id="mk-halo" style="position:absolute;inset:-34%;border-radius:50%;background:radial-gradient(circle,rgba(0,235,255,0.26),transparent 62%);opacity:0.6;transition:opacity 0.4s;pointer-events:none;"></div>
+          <!-- partikül katmanı -->
+          <div id="mk-fx" style="position:absolute;inset:-40%;pointer-events:none;overflow:visible;z-index:4;"></div>
+          <!-- dış kesik halka (yavaş döner) -->
+          <div style="position:absolute;inset:0;border-radius:50%;border:1.5px dashed rgba(125,243,255,0.55);box-shadow:0 0 14px rgba(0,235,255,0.18);animation:mk-tickspin 22s linear infinite;pointer-events:none;"></div>
+          <!-- ilerleme halkası (tarama sırasında belirir) -->
+          <div id="mk-ring" style="position:absolute;inset:2%;border-radius:50%;background:conic-gradient(from -90deg,#00EBFF 0deg,#7df3ff var(--p,0deg),rgba(140,160,220,0.07) var(--p,0deg));-webkit-mask:radial-gradient(circle,transparent 0 46%,#000 47% 50%,transparent 51%);mask:radial-gradient(circle,transparent 0 46%,#000 47% 50%,transparent 51%);opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
+          <!-- iç bölge (el yerleştirme) -->
+          <div style="position:absolute;inset:13%;border-radius:50%;overflow:hidden;background:radial-gradient(circle,rgba(24,36,80,0.55),rgba(7,9,24,0.72));border:1.5px solid rgba(150,200,255,0.34);box-shadow:inset 0 0 34px rgba(0,235,255,0.22);display:flex;align-items:center;justify-content:center;">
+            <!-- iç içe dönen 3 eğri -->
+            <svg id="mk-fp" viewBox="0 0 100 100" style="position:absolute;width:72%;height:72%;opacity:0.95;filter:drop-shadow(0 0 3px rgba(125,243,255,0.55));transition:opacity 0.3s,filter 0.3s;" fill="none" stroke="url(#mkfp)" stroke-width="2.2" stroke-linecap="round">
+              <defs><linearGradient id="mkfp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7df3ff"></stop><stop offset="1" stop-color="#ff8fe4"></stop></linearGradient></defs>
+              <circle cx="50" cy="50" r="32" stroke-dasharray="84 42" style="transform-box:fill-box;transform-origin:center;animation:mk-ringcw 9s linear infinite;"></circle>
+              <circle cx="50" cy="50" r="23" stroke-dasharray="56 30" style="transform-box:fill-box;transform-origin:center;animation:mk-ringccw 6.5s linear infinite;"></circle>
+              <circle cx="50" cy="50" r="14" stroke-dasharray="32 18" style="transform-box:fill-box;transform-origin:center;animation:mk-ringcw 4s linear infinite;"></circle>
+            </svg>
+            <!-- merkez nokta -->
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:2.2cqmin;height:2.2cqmin;border-radius:50%;background:#fff;box-shadow:0 0 18px #fff,0 0 36px rgba(0,235,255,0.95),0 0 56px rgba(0,235,255,0.5);animation:mk-dotbreathe 1.9s ease-in-out infinite;"></div>
+            <!-- yüzde -->
+            <div id="mk-pct" style="position:absolute;bottom:12%;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:3cqmin;letter-spacing:0.08em;color:#7df3ff;opacity:0;transition:opacity 0.3s;text-shadow:0 0 12px rgba(0,235,255,0.7);">0%</div>
+          </div>
+        </div>
+
+        <!-- yönlendirme metni -->
+        <div id="mk-status" style="margin-top:6.5cqmin;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:4.4cqmin;line-height:1;color:#eaf6ff;text-shadow:0 0 22px rgba(0,235,255,0.65),0 0 40px rgba(0,235,255,0.35);transition:color 0.25s;white-space:nowrap;">ELİNİZİ ORTAYA GETİRİN</div>
+      </div>
+    </div>
   </div>
 
   <script src="js/questions.js?v=4"></script>
@@ -104,6 +149,7 @@
   <script src="js/input.js?v=2"></script>
   <script src="js/lens.js?v=6"></script>
   <script src="js/leaderboard.js?v=2"></script>
-  <script src="js/game.js?v=5"></script>
+  <script src="js/calibration.js?v=1"></script>
+  <script src="js/game.js?v=6"></script>
 </body>
 </html>

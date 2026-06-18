@@ -172,7 +172,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
 #mh-result-time{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:6.5cqmin;line-height:1;color:var(--cyan);text-shadow:0 0 24px rgba(0,235,255,0.5);}
 
 /* ===== LENS ===== */
-#mh-lens{position:absolute;left:0;top:0;width:0;height:0;z-index:60;pointer-events:none;opacity:0;transition:opacity 0.25s;}
+#mh-lens{position:absolute;left:0;top:0;width:0;height:0;z-index:90;pointer-events:none;opacity:0;transition:opacity 0.25s;}
 #mh-lens.ghost{opacity:0.55;}
 .lens-pool{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:56cqmin;height:56cqmin;border-radius:50%;
   background:radial-gradient(circle,rgba(130,205,255,0.20),rgba(110,140,255,0.06) 42%,transparent 70%);}
@@ -198,3 +198,24 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
 @keyframes mh-pulse-dot{0%,100%{opacity:0.35;}50%{opacity:1;}}
 @keyframes mh-low{0%,100%{transform:scale(1);text-shadow:0 0 18px rgba(255,84,112,0.7);}50%{transform:scale(1.07);text-shadow:0 0 34px rgba(255,84,112,1);}}
 @keyframes mh-titleglow{0%,100%{filter:drop-shadow(0 0 22px rgba(0,235,255,0.35)) drop-shadow(0 0 44px rgba(159,95,255,0.28));}50%{filter:drop-shadow(0 0 30px rgba(0,235,255,0.55)) drop-shadow(0 0 60px rgba(255,74,214,0.38));}}
+
+/* ===== KALİBRASYON GİRİŞ EKRANI (ilk karşılama; kalibrasyon-giris.html'den) =====
+   #stage'i kaplayan opak overlay. cqmin/0..1 koordinatlar oyunla birebir hizalı.
+   Arka plan standalone'un body gradientinden taşındı (oyunun arka planı değişmez). */
+.mk-stage{position:absolute;inset:0;overflow:hidden;container-type:size;z-index:80;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -5%, rgba(80,40,160,0.30), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 12% 30%, rgba(255,74,214,0.07), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 88% 70%, rgba(0,235,255,0.07), transparent 60%),
+    linear-gradient(180deg,#05040f,#040309 60%,#06040d);}
+.mk-stage.mk-off{display:none;}
+.mk-floaters span{position:absolute;font-family:'Baloo 2',sans-serif;font-weight:700;user-select:none;pointer-events:none;}
+
+@keyframes mk-breathe{0%,100%{transform:scale(1);filter:brightness(1);}50%{transform:scale(1.035);filter:brightness(1.12);}}
+@keyframes mk-drift{0%{transform:translateY(8px) rotate(0deg);}100%{transform:translateY(-26px) rotate(8deg);}}
+@keyframes mk-twinkle{0%,100%{opacity:0.18;}50%{opacity:0.5;}}
+@keyframes mk-pulse-dot{0%,100%{opacity:0.35;}50%{opacity:1;}}
+@keyframes mk-tickspin{to{transform:rotate(360deg);}}
+@keyframes mk-ringcw{to{transform:rotate(360deg);}}
+@keyframes mk-ringccw{to{transform:rotate(-360deg);}}
+@keyframes mk-dotbreathe{0%,100%{transform:translate(-50%,-50%) scale(1);filter:brightness(1);}50%{transform:translate(-50%,-50%) scale(1.18);filter:brightness(1.15);}}

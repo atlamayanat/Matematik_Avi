@@ -329,7 +329,17 @@
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") { try { window.close(); } catch (_) {} }
     });
-    enterAttract();   // ekranı kur + buton merkezlerini cache'le
+
+    // İlk karşılama: biyometrik kalibrasyon ekranı (yalnızca açılışta gösterilir).
+    // Tamamlanınca ana ekrana (BAŞLA) geçilir. ?calib=off ile atlanır (test).
+    const calibOff = new URLSearchParams(location.search).get("calib") === "off";
+    if (MA.calib && !calibOff) {
+      setScreen("calibration");        // 3 oyun ekranı da gizli kalır -> onFrame no-op
+      MA.calib.boot(enterAttract);     // tarama bitince attract'a geç + overlay'i gizle
+    } else {
+      if (MA.calib) MA.calib.hide();
+      enterAttract();                  // ekranı kur + buton merkezlerini cache'le
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
