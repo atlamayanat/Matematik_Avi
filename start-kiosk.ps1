@@ -45,10 +45,14 @@ if (Test-Path $cfg) {
 $bg = @()
 
 # --- 1) web statik sunucu (0.0.0.0:HttpPort) ---
+# NOT: serve_nocache.py kullaniyoruz (duz `http.server` degil). Cunku index.html
+# surum-busted degil; duz sunucu Cache-Control gondermeyince Chrome eski HTML'i
+# onbellekten sunup kalibrasyon giris ekranini atliyordu. no-store -> hep taze.
 if (-not $NoServer) {
-  Write-Host "[kiosk] web sunucusu -> http://localhost:$HttpPort  ($web)"
+  Write-Host "[kiosk] web sunucusu (no-store) -> http://localhost:$HttpPort  ($web)"
+  $serve = Join-Path $py "serve_nocache.py"
   $bg += Start-Process -FilePath $python `
-    -ArgumentList @("-m","http.server","$HttpPort","--directory","$web") `
+    -ArgumentList @($serve, "$HttpPort", $web) `
     -PassThru -WindowStyle Hidden
 }
 
@@ -63,7 +67,10 @@ if (-not $NoDetector) {
 Start-Sleep -Seconds 2
 
 # --- 3) tarayici (Chrome > Edge), kiosk ---
-$url = "http://localhost:$HttpPort/?input=ws&host=$DetectorHost&port=$WsPort"
+# cb=<rastgele>: var olan eski onbellek girisini atlamak icin (no-store sunucuyla
+# birlikte ilk acilis da garanti taze gelir).
+$cb  = Get-Random
+$url = "http://localhost:$HttpPort/?input=ws&host=$DetectorHost&port=$WsPort&cb=$cb"
 
 $chrome = @(
   "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
