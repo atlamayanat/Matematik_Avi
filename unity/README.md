@@ -129,4 +129,5 @@ inspector alanlarını doldur:
   olarak görünür) ile büyütecin çapını eşleştir.
 - **Daire hafif geç kalıyor:** `followSpeed`'i artır; asıl yumuşatma Python'da.
 - **Yumruğu algılayıp tekrar tekrar yakalıyor:** zaten edge-trigger; sorun olursa
-  Python `gesture_fsm.stable_frames_fist`'i artır.
+  Python `gesture_fsm.fist_votes`'u artır (kayan pencere oylaması; `window` ve
+  `open_votes` ile birlikte, `fist_votes + open_votes > window` kuralına dikkat).

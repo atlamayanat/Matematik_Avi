@@ -10,7 +10,7 @@
     "ws_port": 8765
   },
   "camera": {
-    "source": "webcam",
+    "source": "depth",
     "device_index": 0,
     "request_width": 960,
     "request_height": 540,
@@ -19,9 +19,11 @@
   "detection": {
     "model_path": "models/hand_landmarker.task",
     "num_hands": 2,
-    "min_hand_detection_confidence": 0.45,
-    "min_hand_presence_confidence": 0.5,
-    "min_tracking_confidence": 0.4
+    "min_hand_detection_confidence": 0.35,
+    "min_hand_presence_confidence": 0.4,
+    "min_tracking_confidence": 0.35,
+    "fist_curl_ratio": 0.7,
+    "fist_min_curled": 3
   },
   "active_player": {
     "max_size": 0.6,
@@ -29,14 +31,17 @@
     "roi_x_max": 0.9,
     "roi_y_min": 0.05,
     "roi_y_max": 0.95,
-    "steal_ratio": 1.4,
-    "steal_frames": 8,
+    "steal_ratio": 1.2,
+    "steal_frames": 10,
     "lost_frames_to_release": 16,
-    "assoc_max_jump": 0.4
+    "assoc_max_jump": 0.35,
+    "assoc_max_dz": 0.4,
+    "steal_z_margin": 0.25
   },
   "gesture_fsm": {
-    "stable_frames_enter": 5,
-    "stable_frames_fist": 6
+    "window": 7,
+    "fist_votes": 4,
+    "open_votes": 4
   },
   "smoothing": {
     "min_cutoff": 1.0,
@@ -61,11 +66,6 @@
     "dwell_radius": 0.05,
     "display_offset_x": 0,
     "accept_error": 0.03
-  },
-  "depth": {
-    "enabled": false,
-    "z_min_m": 0.8,
-    "z_max_m": 1.8
   },
   "preview": {
     "enabled": true,

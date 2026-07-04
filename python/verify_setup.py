@@ -25,6 +25,12 @@ def main() -> int:
     cfg = load_config("config.json")
     print("config.json loaded OK")
 
+    # Depth source declared? Then the SDK must import, otherwise the game
+    # silently degrades to the depth-less webcam path at startup.
+    if str(cfg.camera.source).lower() in ("depth", "realsense"):
+        import pyrealsense2  # noqa: F401 - import check only
+        print("pyrealsense2 import OK (camera.source = depth)")
+
     # 1. MediaPipe HandLandmarker (LIVE_STREAM) + model file.
     rec = HandRecognizer(cfg)
     fake_rgb = np.zeros((cfg.camera.request_height, cfg.camera.request_width, 3),
@@ -61,14 +67,14 @@ def main() -> int:
     assert res_far.locked is far, "a lone far hand must stay selectable (no distance lock)"
     print("Lone far hand stays tracked (distance lock removed) OK")
 
-    # FSM should require several stable fist frames before committing.
+    # FSM should require several fist votes in the window before committing.
     state = SEARCHING
-    for _ in range(cfg.gesture_fsm.stable_frames_fist + 1):
+    for _ in range(fsm.window):
         state = fsm.update("Closed_Fist")
-    assert state == FIST, "FSM should commit FIST after stable frames"
-    state = fsm.update("Open_Palm")  # one frame back to open -> not yet committed
-    assert state == FIST, "FSM should debounce a single open frame"
-    print("GestureFSM debounce (enter/exit hysteresis) OK")
+    assert state == FIST, "FSM should commit FIST after enough fist votes"
+    state = fsm.update("Open_Palm")  # one noisy open frame -> still fist
+    assert state == FIST, "FSM should ride through a single open frame"
+    print("GestureFSM windowed vote (enter/exit hysteresis) OK")
 
     # 3. Smoothing + homography + OSC construct & run.
     sm = CursorSmoother(cfg.smoothing.min_cutoff, cfg.smoothing.beta,

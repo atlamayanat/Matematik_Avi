@@ -35,7 +35,7 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-from camera import create_camera
+from camera import create_camera, sample_depth
 from detection import HandRecognizer
 from detection.types import HandObservation
 from mapping.homography import Homography
@@ -51,9 +51,19 @@ _GOOD = (110, 230, 120)
 _BAD = (90, 90, 240)
 
 
-def _largest_hand(hands: List[HandObservation]) -> Optional[HandObservation]:
-    """Closest operator = largest apparent hand; ignores bystanders."""
-    return max(hands, key=lambda h: h.span01) if hands else None
+def _operator_hand(hands: List[HandObservation], depth) -> Optional[HandObservation]:
+    """Closest operator: nearest in DEPTH when a depth map is available (the
+    idle hand / bystanders are farther, and a still idle hand would otherwise
+    dwell-capture corrupt grid points), else largest apparent hand."""
+    if not hands:
+        return None
+    if depth is not None:
+        for h in hands:
+            h.z_m = sample_depth(depth, h.centroid_px[0], h.centroid_px[1])
+        with_z = [h for h in hands if h.z_m is not None]
+        if with_z:
+            return min(with_z, key=lambda h: h.z_m)
+    return max(hands, key=lambda h: h.span01)
 
 
 def _grid_targets(gx: int, gy: int, inset: float) -> List[Tuple[float, float]]:
@@ -155,6 +165,7 @@ def run_calibration(cfg) -> bool:
     ts = 0
     pulse = 0
     fit_err: Optional[float] = None
+    force_armed = False   # KOTU sonucta ilk A uyarir, ikinci A yine de kaydeder
 
     def scale_pt(nx, ny):
         """Stage-normalized [0,1] -> canvas px (inside the letterboxed stage rect)."""
@@ -174,7 +185,7 @@ def run_calibration(cfg) -> bool:
                 continue
             ts += 33
             recognizer.submit(frame.rgb, ts)
-            hand = _largest_hand(recognizer.get_observations())
+            hand = _operator_hand(recognizer.get_observations(), frame.depth)
             now = time.monotonic()
             pulse += 1
 
@@ -255,9 +266,20 @@ def run_calibration(cfg) -> bool:
                     dwell_anchor = None
                     flash_until = now + 0.15
                     if idx >= n:
-                        fit_err = homography.fit(captured_src, dst_px)
-                        print(f"[calibrate] fit done, error = {fit_err * 100:.2f}% of screen")
-                        phase = "verify"
+                        try:
+                            fit_err = homography.fit(captured_src, dst_px)
+                            print(f"[calibrate] fit done, error = "
+                                  f"{fit_err * 100:.2f}% of screen")
+                            phase = "verify"
+                        except (ValueError, cv2.error) as exc:
+                            # Degenerate capture (e.g. helper held SPACE and all 9
+                            # points landed on one stale centroid) -> findHomography
+                            # fails. Do NOT crash the kiosk; restart the capture.
+                            print(f"[calibrate] fit FAILED ({exc}); noktalar bozuk, "
+                                  "kalibrasyon bastan basliyor.")
+                            captured_src.clear(); idx = 0
+                            dwell_anchor = None; homography.clear()
+                            fit_err = None; phase = "capture"
                 continue
 
             # ---------------- VERIFY PHASE ----------------
@@ -282,14 +304,23 @@ def run_calibration(cfg) -> bool:
                  err_col, 2)
             _put(canvas, "A / ENTER: KAYDET     R: BASTAN     ESC: iptal",
                  (40, proj_h - 30), 0.8, (190, 190, 190), 2)
+            if force_armed:
+                _put_center(canvas, "HATA YUKSEK! Yine de kaydetmek icin TEKRAR "
+                            "A'ya bas (R = bastan)", proj_h - 160, 0.9, _BAD, 2)
 
             key = _show(win, canvas)
             if key == 27:
                 return False
             if key in (ord('r'), ord('R')):
                 captured_src.clear(); idx = 0; phase = "capture"
-                dwell_anchor = None; homography.clear(); continue
+                dwell_anchor = None; homography.clear(); force_armed = False
+                continue
             if key in (ord('a'), ord('A'), 13, 10):   # A / ENTER
+                if not good and not force_armed:
+                    # KOTU fit: block the one-keypress save of a corrupt
+                    # homography; a second deliberate A still allows override.
+                    force_armed = True
+                    continue
                 homography.save(captured_src, dst_px, cam.resolution, flip)
                 print("[calibrate] DONE.")
                 return True

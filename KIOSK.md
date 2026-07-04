@@ -128,7 +128,7 @@ gömün (gelecek iş; şu an çevrimiçi varsayılıyor).
 | WebSocket | `ws://<host>:8765` |
 | Mouse test | `http://localhost:8000/` |
 | Teşhis | `python tools\ws_sniff.py` |
-| Kamera seç/değiştir | `Kamera-Ayarlari.bat` (canlı önizleme + kaydet) |
+| Kamera seç/değiştir | `Kamera-Ayarlari.bat` (canlı önizleme + kaydet) — yalnızca `camera.source="webcam"` için. RealSense (D435f) derinlik modu: `config.json` → `camera.source="depth"` (el seçimi gerçek mesafeyle; `device_index` yok sayılır). |
 | Kalibrasyon | `Kalibrasyon.bat` (9 hedef + doğrulama → `calib.json`) |
 | Çıkış | ESC (veya Alt+F4) |
 | Detektör (elle) | `cd python; python main.py [--no-preview] [--calibrate]` |

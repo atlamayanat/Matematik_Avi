@@ -21,8 +21,10 @@ import time
 
 import cv2
 
+from collections import deque
+
 from config import load_config
-from camera import create_camera
+from camera import create_camera, sample_depth
 from detection import HandRecognizer
 from selection import ActivePlayerSelector
 from gesture import GestureFSM, FIST
@@ -90,7 +92,8 @@ def _draw_overlay(bgr, cfg, observations, sel, committed, present,
         skel_color = (255, 0, 255) if obs.gesture == "Closed_Fist" else color
         _draw_skeleton(bgr, obs.landmarks_px, skel_color)
         cv2.rectangle(bgr, (x1, y1), (x2, y2), color, 2 if is_locked else 1)
-        label = f"{obs.gesture} {obs.gesture_score:.2f} sz{obs.span01:.2f}"
+        z_txt = f" z{obs.z_m:.2f}m" if obs.z_m is not None else ""
+        label = f"{obs.gesture} {obs.gesture_score:.2f} sz{obs.span01:.2f}{z_txt}"
         cv2.putText(bgr, label, (x1, max(y1 - 8, 12)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         if is_locked:
@@ -119,7 +122,7 @@ def run_detector(cfg, preview: bool) -> str:
     # Saved calibration is tied to the camera resolution + mirroring it was built
     # with; if either changed, the px coords no longer line up -> warn loudly.
     homography.warn_if_environment_changed(cam.resolution, cfg.camera.flip_horizontal)
-    selector = ActivePlayerSelector(cfg)
+    selector = ActivePlayerSelector(cfg, cam_res=cam.resolution)
     fsm = GestureFSM(cfg)
     smoother = CursorSmoother(cfg.smoothing.min_cutoff, cfg.smoothing.beta,
                               cfg.smoothing.d_cutoff)
@@ -140,6 +143,13 @@ def run_detector(cfg, preview: bool) -> str:
     last_rid = -1
     fps = 0.0
     fps_t = time.monotonic()
+    # Recent depth maps keyed by the submit timestamp, so landmarks are paired
+    # with the depth of the SAME frame (inference lags capture by 1-2 frames;
+    # sampling the current frame at an old centroid reads background depth
+    # during fast sweeps and would break the selector's depth gate). Sized to
+    # absorb an inference HITCH (GC/thermal) too, so the timestamp match rarely
+    # misses; on a miss we mark depth UNKNOWN rather than trust the wrong frame.
+    depth_ring = deque(maxlen=32)   # ~0.5 s at 60 fps
 
     _net = cfg.get("net", None)
     _transport = str(getattr(_net, "transport", "osc") if _net is not None else "osc").lower()
@@ -158,7 +168,10 @@ def run_detector(cfg, preview: bool) -> str:
                 time.sleep(0.01)
                 continue
 
-            recognizer.submit(frame.rgb, clock.now())
+            ts = clock.now()
+            recognizer.submit(frame.rgb, ts)
+            if frame.depth is not None:
+                depth_ring.append((ts, frame.depth))
 
             # Run the pipeline only on a NEW inference result. The loop spins at
             # ~60 Hz but MediaPipe completes only ~20-30 Hz; feeding One Euro (and
@@ -169,6 +182,23 @@ def run_detector(cfg, preview: bool) -> str:
             if rid != last_rid:
                 last_rid = rid
                 observations = recognizer.get_observations()
+                # Attach depth (metres) at each palm centre, from the depth map
+                # of the SAME frame the landmarks were computed on (ring lookup
+                # by timestamp), so the selector can separate the playing hand
+                # from the idle body hand by ACTUAL distance. No-op on webcams.
+                if depth_ring:
+                    rts = recognizer.result_timestamp_ms
+                    dmap = next((d for t, d in depth_ring if t == rts), None)
+                    # On a ring MISS (matching frame evicted after a long hitch)
+                    # leave z_m = None (unknown) rather than sample the CURRENT
+                    # frame's depth at these STALE centroids - during a sweep that
+                    # reads background metres and would feed the selector a
+                    # confidently-wrong depth. Unknown -> the tight positional gate.
+                    if dmap is not None:
+                        for obs in observations:
+                            obs.z_m = sample_depth(dmap,
+                                                   obs.centroid_px[0],
+                                                   obs.centroid_px[1])
                 sel = selector.update(observations)
 
                 if sel.just_acquired:
@@ -179,7 +209,14 @@ def run_detector(cfg, preview: bool) -> str:
                     smoother.reset()
 
                 if sel.locked is not None:
-                    committed = fsm.update(sel.locked.gesture)
+                    # On a COASTED frame the locked hand was NOT seen this frame
+                    # (its observation is stale). Do not feed its gesture to the
+                    # FSM - re-serving a stale 'Closed_Fist' would let a hand that
+                    # briefly curled while leaving the frame accrue votes and drop
+                    # a ghost net. Hold the last committed state; position still
+                    # coasts (stable) through the same centroid below.
+                    if not sel.coasted:
+                        committed = fsm.update(sel.locked.gesture)
                     raw = homography.map_point(
                         sel.locked.centroid_px[0], sel.locked.centroid_px[1],
                         sel.locked.centroid01)

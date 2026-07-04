@@ -135,20 +135,40 @@ class Homography:
 
     # --- environment validation ------------------------------------------
     def warn_if_environment_changed(self, cam_res, flip) -> None:
-        """If the camera resolution or mirroring differs from what the saved
-        calibration was built with, the pixel coordinates no longer line up and
-        the mapping is silently wrong. Surface that loudly so the operator
-        recalibrates instead of chasing a 'drifting cursor' ghost."""
+        """Reconcile the saved calibration with the current camera environment.
+
+        A SAME-ASPECT resolution change is a linear per-axis rescale of the
+        source pixels, so it is composed into H losslessly (same-aspect webcam
+        modes share the same field of view) instead of silently misprojecting
+        the cursor. A DIFFERENT-aspect change (e.g. driver fell back to 4:3)
+        crops the FOV and is NOT a pure rescale, and a FLIP change cannot be
+        absorbed either -> warn loudly so the operator recalibrates instead of
+        chasing a 'drifting cursor' ghost."""
         if self._H is None:
             return
-        issues = []
-        if self._cam_res and [int(v) for v in self._cam_res] != [int(v) for v in cam_res]:
-            issues.append(f"kamera cozunurlugu {self._cam_res} -> {list(cam_res)}")
+        if (self._cam_res
+                and [int(v) for v in self._cam_res] != [int(v) for v in cam_res]
+                and int(cam_res[0]) > 0 and int(cam_res[1]) > 0):
+            ow, oh = (float(v) for v in self._cam_res)
+            nw, nh = float(cam_res[0]), float(cam_res[1])
+            if abs(ow / oh - nw / nh) < 0.01:
+                scale = np.array([[ow / nw, 0.0, 0.0],
+                                  [0.0, oh / nh, 0.0],
+                                  [0.0, 0.0, 1.0]], dtype=np.float32)
+                self._H = (self._H @ scale).astype(np.float32)
+                print(f"[homography] kalibrasyon {self._cam_res} cozunurlugunde "
+                      f"kaydedilmisti; H, {list(cam_res)} icin otomatik olceklendi "
+                      f"(ayni en-boy orani, kayipsiz). Kesin dogruluk icin firsat "
+                      f"oldugunda yeniden kalibre et (oyunda C tusu).")
+                self._cam_res = [int(cam_res[0]), int(cam_res[1])]
+            else:
+                print(f"[homography] UYARI: kamera cozunurlugu {self._cam_res} -> "
+                      f"{list(cam_res)} EN-BOY ORANI degiserek degisti (FOV kirpilir, "
+                      "otomatik olcekleme guvenli degil) -> yeniden kalibre et "
+                      "(oyunda C tusu).")
         if self._flip is not None and bool(self._flip) != bool(flip):
-            issues.append(f"flip_horizontal {self._flip} -> {bool(flip)}")
-        if issues:
-            print("[homography] UYARI: " + "; ".join(issues)
-                  + " degisti -> dogruluk icin yeniden kalibre et (oyunda C tusu).")
+            print(f"[homography] UYARI: flip_horizontal {self._flip} -> {bool(flip)} "
+                  "degisti -> dogruluk icin yeniden kalibre et (oyunda C tusu).")
 
     # --- live mapping -----------------------------------------------------
     def map_point(self, px: float, py: float,
