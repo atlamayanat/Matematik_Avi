@@ -17,6 +17,7 @@ Hotkeys in the preview window:  ESC = quit,  C = recalibrate.
 from __future__ import annotations
 
 import argparse
+import os
 import time
 
 import cv2
@@ -115,6 +116,23 @@ def _draw_overlay(bgr, cfg, observations, sel, committed, present,
                     state_color if i == 1 else (255, 255, 255), 2)
 
 
+def _dbg_log(path, observations, sel, selector) -> None:
+    """TEMP selector diagnostics (enabled by env MA_DEBUG=<logpath>): log both
+    hands' apparent size + depth and the lock decision, so a wrong-hand jump can
+    be traced to the real z values / steal counter. No-op unless MA_DEBUG is set."""
+    hs = " ".join(
+        f"h{i}(sz{o.span01:.3f} "
+        f"z{('%.3f' % o.z_m) if o.z_m is not None else 'None'} {o.gesture[0]})"
+        for i, o in enumerate(observations))
+    lz = ('%.3f' % selector._locked_z) if selector._locked_z is not None else 'None'
+    ln = ('%.3f' % sel.locked.z_m) if (sel.locked is not None
+                                       and sel.locked.z_m is not None) else 'None'
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"{time.monotonic():9.2f} n={len(observations)} {hs} | "
+                f"baseZ={lz} lockedNowZ={ln} steal={selector._steal} "
+                f"acq={int(sel.just_acquired)} coast={int(sel.coasted)}\n")
+
+
 def run_detector(cfg, preview: bool) -> str:
     cam = create_camera(cfg)
     recognizer = HandRecognizer(cfg)
@@ -128,6 +146,7 @@ def run_detector(cfg, preview: bool) -> str:
                               cfg.smoothing.d_cutoff)
     sender = create_sender(cfg)   # OSC | WebSocket | her ikisi (config.json net.transport)
     clock = MonotonicMs()
+    _dbg_path = os.environ.get("MA_DEBUG")  # set to a logpath to trace selection
 
     frame_budget = 1.0 / float(cfg.osc.send_rate_hz)
     win = cfg.preview.window_name
@@ -200,6 +219,8 @@ def run_detector(cfg, preview: bool) -> str:
                                                    obs.centroid_px[0],
                                                    obs.centroid_px[1])
                 sel = selector.update(observations)
+                if _dbg_path and len(observations) >= 2:
+                    _dbg_log(_dbg_path, observations, sel, selector)
 
                 if sel.just_acquired:
                     smoother.reset()
@@ -234,9 +255,13 @@ def run_detector(cfg, preview: bool) -> str:
             else:
                 sender.send_absent(*last_xy)
 
-            # FPS (EMA).
+            # FPS (EMA). Floor the interval at half the frame budget so a rare
+            # near-zero dt (loop body overran the budget, next loop ran fast)
+            # cannot spike inst to ~1e6 and poison the EMA into a garbage reading
+            # (the loop is rate-capped, so a real value above ~2x send_rate is
+            # impossible anyway).
             now = time.monotonic()
-            inst = 1.0 / max(now - fps_t, 1e-6)
+            inst = 1.0 / max(now - fps_t, frame_budget * 0.5)
             fps = 0.9 * fps + 0.1 * inst if fps else inst
             fps_t = now
 

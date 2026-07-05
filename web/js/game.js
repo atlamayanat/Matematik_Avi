@@ -7,7 +7,7 @@
   // ---- Otoriter kurallar (RoundManager.cs) ----
   const RULES = {
     roundSeconds: 120, correctCopies: 3, totalTokens: 36,
-    decoyVariety: 14, lowTimeThreshold: 10, resolveDelay: 0.85, endSummarySeconds: 6,
+    decoyVariety: 14, lowTimeThreshold: 10, resolveDelay: 0.85, endSummarySeconds: 5,
   };
   // Puan (çocuk-dostu dopamin): zorluğa göre taban × ardışık doğruda büyüyen kombo çarpanı.
   // Yanlışta puan DÜŞMEZ; sadece kombo sıfırlanır (cesaret kırıcı olmasın).
@@ -20,6 +20,10 @@
   const RAMP = { orta: 3, zor: 6 };
 
   const selector = new MA.LensHunt();
+
+  // Kalibrasyon giriş ekranı ?calib=off ile kapatılır (test). Açıkken: ilk
+  // açılışta + HER RESET'te + HER oyun bitişinde gösterilir (her oyuncu yapsın).
+  const CALIB_OFF = new URLSearchParams(location.search).get("calib") === "off";
 
   const G = {
     screen: "attract",
@@ -67,6 +71,26 @@
     MA.leaderboard.render($("mh-lb-list"), G._lbHighlight || 0);  // tabloyu güncelle, yeni kaydı vurgula
     G._lbHighlight = 0;
     computeStartCenter();
+  }
+
+  // Kalibrasyon giriş (onboarding) ekranını göster; tamamlanınca attract'a (BAŞLA)
+  // geç. Her yeni oyuncunun taramayı yapması için RESET'te ve oyun bitişinde
+  // (ve ilk açılışta) çağrılır. Bekleyen tüm zamanlayıcıları enterAttract gibi temizler.
+  function enterCalibration() {
+    if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
+    if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
+    if (G._countTimer) { clearTimeout(G._countTimer); G._countTimer = null; }
+    G.running = false; G.locked = false; G.counting = false;
+    G._armedStart = false; G._armedReset = false;
+    selector.suspend();
+    MA.tokens.clearField();
+    const cd = $("mh-countdown"); if (cd) cd.classList.remove("show");
+    if (MA.calib && !CALIB_OFF) {
+      setScreen("calibration");        // 3 oyun ekranı da gizli kalır -> onFrame no-op
+      MA.calib.boot(enterAttract);     // tarama bitince attract'a geç + overlay'i gizle
+    } else {
+      enterAttract();                  // kalibrasyon kapalı: doğrudan BAŞLA ekranı
+    }
   }
 
   // BAŞLA -> oyun ekranına geç, ilk soruyu arkada sönük göster, 3-2-1 say, sonra canlandır.
@@ -189,7 +213,9 @@
     G._lbHighlight = lb.top3 ? lb.rank : 0;    // attract'a dönünce vurgulanacak satır
     showResultRank(lb);
 
-    G._endTimer = setTimeout(enterAttract, RULES.endSummarySeconds * 1000);
+    // Sonuç ekranı gösterildikten sonra attract yerine kalibrasyona dön: sonraki
+    // oyuncu yeniden onboarding yapsin.
+    G._endTimer = setTimeout(enterCalibration, RULES.endSummarySeconds * 1000);
   }
 
   // Final puanı 0'dan hedefe say (easeOutCubic). Yeni tur eski animasyonu iptal eder.
@@ -250,7 +276,7 @@
       if (!selector.hasArmed && !G.locked && ctx.present && G._resetWorld) {
         if (world.dist(ctx.lx, ctx.ly, G._resetWorld.wx, G._resetWorld.wy) <= ARM_RESET) {
           armR = true;
-          if (fistEdge) { MA.lens.playSelect(); enterAttract(); }
+          if (fistEdge) { MA.lens.playSelect(); enterCalibration(); }  // RESET -> her oyuncu icin kalibrasyon
         }
       }
       $("mh-reset").classList.toggle("armed", armR);
@@ -330,12 +356,11 @@
       if (e.key === "Escape") { try { window.close(); } catch (_) {} }
     });
 
-    // İlk karşılama: biyometrik kalibrasyon ekranı (yalnızca açılışta gösterilir).
-    // Tamamlanınca ana ekrana (BAŞLA) geçilir. ?calib=off ile atlanır (test).
-    const calibOff = new URLSearchParams(location.search).get("calib") === "off";
-    if (MA.calib && !calibOff) {
-      setScreen("calibration");        // 3 oyun ekranı da gizli kalır -> onFrame no-op
-      MA.calib.boot(enterAttract);     // tarama bitince attract'a geç + overlay'i gizle
+    // İlk karşılama: biyometrik kalibrasyon ekranı. Tamamlanınca BAŞLA ekranına
+    // geçilir. Artık aynı ekran her RESET'te ve her oyun bitişinde de gelir
+    // (enterCalibration). ?calib=off ile tümüyle atlanır (test).
+    if (MA.calib && !CALIB_OFF) {
+      enterCalibration();              // ilk karşılama: kalibrasyon -> attract
     } else {
       if (MA.calib) MA.calib.hide();
       enterAttract();                  // ekranı kur + buton merkezlerini cache'le
