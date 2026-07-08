@@ -28,3 +28,7 @@ tools/imgenv/
 python/*.log
 python/*.log.err
 python/_vs_*.txt
+
+# Kiosk supervisor logs + stop-flag (start-kiosk.ps1 -Supervise)
+logs/
+KIOSK-DURDUR.flag

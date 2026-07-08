@@ -306,12 +306,31 @@ def main() -> int:
         return 0
 
     preview = not args.no_preview
+    # Unattended-kiosk supervision: a crash in the detector (camera fault, driver
+    # re-enumeration, an unexpected exception) must NOT be terminal. Catch it,
+    # log it, and restart with a capped exponential backoff so a persistent fault
+    # (camera unplugged) retries calmly instead of hot-looping. A clean run resets
+    # the backoff. ESC (_QUIT) exits deliberately; Ctrl+C exits deliberately.
+    backoff = 1.0
     while True:
-        action = run_detector(cfg, preview)
+        try:
+            action = run_detector(cfg, preview)
+        except KeyboardInterrupt:
+            print("[detector] KeyboardInterrupt -> cikiliyor.")
+            return 0
+        except Exception as exc:   # noqa: BLE001 - top-level kiosk supervisor
+            import traceback
+            print(f"[detector] BEKLENMEDIK HATA; {backoff:.0f} sn sonra yeniden "
+                  f"baslatiliyor: {type(exc).__name__}: {exc}", flush=True)
+            traceback.print_exc()
+            time.sleep(backoff)
+            backoff = min(backoff * 2.0, 30.0)
+            continue
+        backoff = 1.0   # clean return -> reset backoff
         if action == _RECALIBRATE:
             run_calibration(cfg)
             continue   # restart detector; Homography reloads the new calib.json
-        break
+        break          # _QUIT
     return 0
 
 

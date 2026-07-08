@@ -4,12 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Matematik Avı</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Fontlar YEREL (cevrimdisi kiosk): web/fonts/ altina gomulu; internet gerektirmez.
+     Yenilemek/degistirmek icin: tools\fetch_fonts.ps1 -->
+<link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
+  <!-- Kiosk hata izleme: yakalanmamış hata/promise sessizce ölmesin; konsola yaz
+       (tarayıcı DevTools + launcher loglarıyla teşhis edilir). Render döngüsü
+       kurtarması lens.js watchdog'unda. -->
+  <script>
+    window.addEventListener("error", function (e) {
+      try { console.error("[kiosk] yakalanmamis hata:", e.message, (e.filename || "") + ":" + (e.lineno || "")); } catch (_) {}
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      try { console.error("[kiosk] islenmemis promise reddi:", e.reason); } catch (_) {}
+    });
+  </script>
+
   <!-- Tam-ekran arka plan yıldız alanı (sahnenin arkasında) -->
   <canvas id="mh-stars-page"></canvas>
 

@@ -37,6 +37,7 @@ import numpy as np
 from .base import CameraSource, Frame
 
 _DEPTH_W, _DEPTH_H = 848, 480   # native D4xx fast depth mode
+_SOFT_HANG_S = 15.0             # no REAL frame this long -> fatal (soft-hang recovery)
 
 
 class DepthSource(CameraSource):
@@ -120,12 +121,28 @@ class DepthSource(CameraSource):
         All the per-frame cost (align, flip, colour convert, metric scaling)
         happens here, so the main loop's read() is a cheap latest-value fetch."""
         timeouts = 0
+        last_ok = time.monotonic()   # wall time of the last REAL delivered frame
         while not self._stop.is_set():
             try:
                 frames = self._pipe.wait_for_frames(timeout_ms=1000)
                 timeouts = 0
             except RuntimeError:
                 timeouts += 1
+                # SOFT-HANG guard. The periodic restart below resets `timeouts`,
+                # so a pipeline that keeps "starting OK" but delivers NO frames
+                # (partial USB re-enumeration after a brownout) would otherwise
+                # loop forever while read() serves a stale frame -> cursor looks
+                # ALIVE but never responds, no error, no log. Track wall time
+                # since the last REAL frame INDEPENDENTLY of the restart counter;
+                # after _SOFT_HANG_S declare a fatal fault so read() raises and
+                # the top-level supervisor restarts the whole detector clean.
+                if time.monotonic() - last_ok > _SOFT_HANG_S:
+                    with self._lock:
+                        self._error = RuntimeError(
+                            f"RealSense {_SOFT_HANG_S:.0f} sn'dir GERCEK kare "
+                            "vermiyor (yumusak takilma) -> dedektor yeniden "
+                            "baslatiliyor.")
+                    return
                 if timeouts % 5 == 0:   # ~5 s without frames -> try to recover
                     print(f"[camera] RealSense {timeouts} sn'dir kare vermiyor; "
                           "pipeline yeniden baslatiliyor...")
@@ -135,11 +152,12 @@ class DepthSource(CameraSource):
                         pass
                     try:
                         self._pipe.start(self._rs_cfg)
-                        print("[camera] RealSense yeniden baglandi.")
-                        timeouts = 0
+                        print("[camera] RealSense pipeline yeniden basladi "
+                              "(kare akisi dogrulanacak).")
+                        timeouts = 0   # NOTE: do NOT reset last_ok - only a real frame does
                     except RuntimeError as exc:
                         # Device truly gone: record it; read() raises so the
-                        # operator sees a real error instead of a hung game.
+                        # supervisor restarts instead of hanging the game.
                         with self._lock:
                             self._error = RuntimeError(
                                 "RealSense kurtarilamadi (kablo/USB portunu "
@@ -162,6 +180,7 @@ class DepthSource(CameraSource):
             depth_m = z16.astype(np.float32) * self._depth_scale   # metres; 0 = invalid
             with self._lock:
                 self._latest = Frame(rgb=rgb, depth=depth_m)
+            last_ok = time.monotonic()   # a genuine frame was delivered
 
     # --- main thread ------------------------------------------------------
     def read(self) -> Optional[Frame]:

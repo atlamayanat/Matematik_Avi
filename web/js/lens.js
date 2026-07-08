@@ -108,7 +108,8 @@
   MA.LensHunt = LensHunt;
 
   // ---- Mercek görseli + döngü ----
-  let lensEl, irisEl, lx = 0.5, ly = 0.5, lastT = 0, started = false;
+  let lensEl, irisEl, lx = 0.5, ly = 0.5, lastT = 0, started = false, _lastGood = 0;
+  const _now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
   let idle = 0; // attract'ta el yokken geçen süre (ghost demo için)
 
   function playSelect(wx, wy) {
@@ -129,6 +130,10 @@
   }
 
   function frame(t) {
+    // Bir kare istisnası tüm render döngüsünü ASLA öldürmemeli (kiosk donması):
+    // yakala + logla, finally'de bir sonraki kareyi MUTLAKA planla. _lastGood
+    // yalnızca tam-başarılı bir karede ilerler -> watchdog wedge'i yakalar.
+    try {
     const rawMs = lastT ? (t - lastT) : 16.7;        // ölçüm için ham kare süresi (clamp'siz)
     const dt = lastT ? Math.min((t - lastT) / 1000, 0.05) : 0.016;
     lastT = t;
@@ -167,7 +172,12 @@
     if (MA.game && MA.game.onFrame) {
       MA.game.onFrame({ lx: w.x, ly: w.y, present, fist: !!hand_fist(present, ghosting), dt, t: t / 1000 });
     }
-    requestAnimationFrame(frame);
+    _lastGood = t;                                   // tam-başarılı kare (watchdog nabzı)
+    } catch (e) {
+      if (window.console) console.error("[lens] kare istisnası (yok sayıldı, döngü sürüyor):", e);
+    } finally {
+      requestAnimationFrame(frame);
+    }
   }
 
   function hand_fist(present, ghosting) {
@@ -180,6 +190,16 @@
     if (started) return; started = true;
     lensEl = document.getElementById("mh-lens");
     irisEl = document.getElementById("mh-iris");
+    _lastGood = _now();
+    // Watchdog: render döngüsü ~6 sn tam-başarılı kare üretmezse (wedge, ya da her
+    // kare istisna atıyorsa) sayfayı yeniden yükle -> gözetimsiz kioskta donuk
+    // ekranda kalmaktansa kurtar. Sağlıklı çalışmada asla tetiklenmez.
+    setInterval(function () {
+      if (started && _lastGood && _now() - _lastGood > 6000) {
+        if (window.console) console.warn("[lens] render döngüsü takıldı -> sayfa yeniden yükleniyor");
+        try { location.reload(); } catch (_) {}
+      }
+    }, 2000);
     requestAnimationFrame(frame);
   }
 

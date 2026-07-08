@@ -203,21 +203,29 @@
   let driverRaf = null, active = false, prevFist = false;
   function driverFrame(){
     if(!active) return;
-    const hand = (window.MA && window.MA.input && window.MA.input.hand) || null;
-    if(hand){
-      if(hand.present){
-        const r = stage.getBoundingClientRect();
-        // hand.x/y 0..1 (#stage'e göre); .mk-stage #stage'i kapladığından doğrudan ölçekle
-        window.MatematikKalibrasyon.setPointer(hand.x * r.width, hand.y * r.height);
-      } else {
-        window.MatematikKalibrasyon.clearPointer();
+    // Bir istisna sürücü döngüsünü öldürmemeli (kalibrasyon ekranı el takibini
+    // kaybederse oyuncu ilerleyemez, kiosk kilitlenir): yakala + logla, finally'de
+    // bir sonraki kareyi mutlaka planla.
+    try {
+      const hand = (window.MA && window.MA.input && window.MA.input.hand) || null;
+      if(hand){
+        if(hand.present){
+          const r = stage.getBoundingClientRect();
+          // hand.x/y 0..1 (#stage'e göre); .mk-stage #stage'i kapladığından doğrudan ölçekle
+          window.MatematikKalibrasyon.setPointer(hand.x * r.width, hand.y * r.height);
+        } else {
+          window.MatematikKalibrasyon.clearPointer();
+        }
+        // Yumruk yükselen kenarı: jest sürerken tekrar tetikleme
+        const isFist = hand.present && hand.gesture === 'fist';
+        if(isFist && !prevFist) window.MatematikKalibrasyon.fist();
+        prevFist = isFist;
       }
-      // Yumruk yükselen kenarı: jest sürerken tekrar tetikleme
-      const isFist = hand.present && hand.gesture === 'fist';
-      if(isFist && !prevFist) window.MatematikKalibrasyon.fist();
-      prevFist = isFist;
+    } catch (e) {
+      if(window.console) console.error("[kalibrasyon] sürücü istisnası (yok sayıldı):", e);
+    } finally {
+      driverRaf = requestAnimationFrame(driverFrame);
     }
-    driverRaf = requestAnimationFrame(driverFrame);
   }
 
   function show(){

@@ -89,15 +89,26 @@ Güvenlik duvarı: PC-A'da 8000 (HTTP) ve 8765 (WebSocket) portlarına LAN eriş
 
 ---
 
-## 4. Açılışta otomatik başlatma (boot)
+## 4. Açılışta otomatik başlatma (boot) + gözetimsiz çalışma
 
-**Yöntem A — Başlangıç klasörü:** `Win+R` → `shell:startup` → `Matematik-Avi-Baslat.bat` için kısayol koy.
+**Önerilen — tek tık:** Kökteki **`Otomatik-Baslatma-Kur.bat`**'a çift tıkla (UAC/yönetici sorar).
+Bu, Görev Zamanlayıcı'ya `MatematikAvi-Kiosk` görevini kurar:
+- **Oturum açılışta** `start-kiosk.ps1 -Supervise` otomatik başlar.
+- **`-Supervise`** dedektör + web sunucusu + tarayıcıyı **canlı tutar**: biri çökerse yeniden başlatır.
+- Görevin kendisi ölürse Görev Zamanlayıcı onu **~1 dk'da yeniden başlatır** (restart-on-failure).
+- Tüm çıktı **`logs\`** altına zaman-damgalı yazılır (gece oluşan arızanın kanıtı burada kalır).
 
-**Yöntem B — Görev Zamanlayıcı (önerilen, daha sağlam):**
-- Task Scheduler → Create Task → Trigger: *At log on* → Action: Start a program →
-  Program: `powershell.exe`,
-  Arguments: `-NoProfile -ExecutionPolicy Bypass -File "C:\...\GestureExhibit-main\start-kiosk.ps1"`.
-- "Run only when user is logged on" + otomatik oturum açma (kiosk hesabı) ayarla.
+> **Sergi PC'sinde**: kiosk hesabına **otomatik oturum açma** ayarla (Netplwiz), yoksa elektrik
+> kesintisi/gece yeniden başlatması sonrası görev tetiklenmez. Görev "yalnızca kullanıcı oturum
+> açtığında çalışır" (tarayıcı GUI için şart).
+
+**Kiosk'u elle durdurma** (supervise modu ESC ile kapanmaz — çocuk kapatamasın diye): kökteki
+**`Kiosk-Durdur.bat`**'a çift tıkla (bileşenler temiz kapanır).
+
+**Kaldırmak için** (yönetici PowerShell): `Unregister-ScheduledTask -TaskName 'MatematikAvi-Kiosk' -Confirm:$false`
+
+**Basit alternatif** (gözetim/log yok): `Win+R` → `shell:startup` → **`Matematik-Avi-Baslat.bat`**
+için kısayol koy. Yalnızca bir kez başlatır; çökme kurtarması yoktur.
 
 ---
 
