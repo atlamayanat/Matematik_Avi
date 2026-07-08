@@ -190,6 +190,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
 #mh-conn.show{opacity:0.85;}
 #mh-conn .cdot{width:1cqmin;height:1cqmin;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);}
 #mh-conn.ok .cdot{background:var(--green);box-shadow:0 0 8px var(--green);}
+#mh-conn.warn{color:#FFC83D;}
+#mh-conn.warn .cdot{background:#FFC83D;box-shadow:0 0 8px #FFC83D;}
 
 /* ===== keyframes (.dc.html'den) ===== */
 @keyframes mh-breathe{0%,100%{transform:scale(1);filter:brightness(1);}50%{transform:scale(1.035);filter:brightness(1.12);}}

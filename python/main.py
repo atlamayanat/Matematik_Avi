@@ -134,47 +134,53 @@ def _dbg_log(path, observations, sel, selector) -> None:
 
 
 def run_detector(cfg, preview: bool) -> str:
-    cam = create_camera(cfg)
-    recognizer = HandRecognizer(cfg)
-    homography = Homography(cfg)
-    # Saved calibration is tied to the camera resolution + mirroring it was built
-    # with; if either changed, the px coords no longer line up -> warn loudly.
-    homography.warn_if_environment_changed(cam.resolution, cfg.camera.flip_horizontal)
-    selector = ActivePlayerSelector(cfg, cam_res=cam.resolution)
-    fsm = GestureFSM(cfg)
-    smoother = CursorSmoother(cfg.smoothing.min_cutoff, cfg.smoothing.beta,
-                              cfg.smoothing.d_cutoff)
-    sender = create_sender(cfg)   # OSC | WebSocket | her ikisi (config.json net.transport)
-    clock = MonotonicMs()
-    _dbg_path = os.environ.get("MA_DEBUG")  # set to a logpath to trace selection
-
-    frame_budget = 1.0 / float(cfg.osc.send_rate_hz)
-    win = cfg.preview.window_name
-    if preview:
-        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
-
-    last_xy = (0.5, 0.5)
-    committed = "searching"
-    mapped = (0.5, 0.5)
-    present = False
-    observations = []
-    sel = None
-    last_rid = -1
-    fps = 0.0
-    fps_t = time.monotonic()
-    # Recent depth maps keyed by the submit timestamp, so landmarks are paired
-    # with the depth of the SAME frame (inference lags capture by 1-2 frames;
-    # sampling the current frame at an old centroid reads background depth
-    # during fast sweeps and would break the selector's depth gate). Sized to
-    # absorb an inference HITCH (GC/thermal) too, so the timestamp match rarely
-    # misses; on a miss we mark depth UNKNOWN rather than trust the wrong frame.
-    depth_ring = deque(maxlen=32)   # ~0.5 s at 60 fps
-
-    _net = cfg.get("net", None)
-    _transport = str(getattr(_net, "transport", "osc") if _net is not None else "osc").lower()
-    print(f"[detector] running. transport={_transport}  OSC -> {cfg.osc.host}:{cfg.osc.port}  "
-          f"calibrated={homography.is_calibrated}")
+    # Resource-safe setup: init to None and CREATE inside the try, so a constructor
+    # that throws partway (model missing, WS port busy, camera fault) still hits the
+    # finally and releases the RealSense pipeline+thread instead of leaking it. A
+    # leaked capture thread holds the device, so the supervisor's next restart would
+    # fail with 'device busy' in a permanent loop.
+    cam = recognizer = sender = None
     try:
+        cam = create_camera(cfg)
+        recognizer = HandRecognizer(cfg)
+        homography = Homography(cfg)
+        # Saved calibration is tied to the camera resolution + mirroring it was built
+        # with; if either changed, the px coords no longer line up -> warn loudly.
+        homography.warn_if_environment_changed(cam.resolution, cfg.camera.flip_horizontal)
+        selector = ActivePlayerSelector(cfg, cam_res=cam.resolution)
+        fsm = GestureFSM(cfg)
+        smoother = CursorSmoother(cfg.smoothing.min_cutoff, cfg.smoothing.beta,
+                                  cfg.smoothing.d_cutoff)
+        sender = create_sender(cfg)   # OSC | WebSocket | her ikisi (config.json net.transport)
+        clock = MonotonicMs()
+        _dbg_path = os.environ.get("MA_DEBUG")  # set to a logpath to trace selection
+
+        frame_budget = 1.0 / float(cfg.osc.send_rate_hz)
+        win = cfg.preview.window_name
+        if preview:
+            cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+
+        last_xy = (0.5, 0.5)
+        committed = "searching"
+        mapped = (0.5, 0.5)
+        present = False
+        observations = []
+        sel = None
+        last_rid = -1
+        fps = 0.0
+        fps_t = time.monotonic()
+        # Recent depth maps keyed by the submit timestamp, so landmarks are paired
+        # with the depth of the SAME frame (inference lags capture by 1-2 frames;
+        # sampling the current frame at an old centroid reads background depth
+        # during fast sweeps and would break the selector's depth gate). Sized to
+        # absorb an inference HITCH (GC/thermal) too, so the timestamp match rarely
+        # misses; on a miss we mark depth UNKNOWN rather than trust the wrong frame.
+        depth_ring = deque(maxlen=32)   # ~0.5 s at 60 fps
+
+        _net = cfg.get("net", None)
+        _transport = str(getattr(_net, "transport", "osc") if _net is not None else "osc").lower()
+        print(f"[detector] running. transport={_transport}  OSC -> {cfg.osc.host}:{cfg.osc.port}  "
+              f"calibrated={homography.is_calibrated}")
         while True:
             loop_start = time.monotonic()
 
@@ -281,11 +287,15 @@ def run_detector(cfg, preview: bool) -> str:
             if sleep > 0:
                 time.sleep(sleep)
     finally:
-        cam.close()
-        recognizer.close()
-        _close = getattr(sender, "close", None)
-        if callable(_close):
-            _close()   # WS sunucusunu kapat / portu serbest bırak (recalibrate yeniden-başlatması için)
+        # None-guarded: setup may have thrown before a given resource existed.
+        if cam is not None:
+            cam.close()
+        if recognizer is not None:
+            recognizer.close()
+        if sender is not None:
+            _close = getattr(sender, "close", None)
+            if callable(_close):
+                _close()   # WS sunucusunu kapat / portu serbest bırak (recalibrate yeniden-başlatması için)
         if preview:
             cv2.destroyAllWindows()
 

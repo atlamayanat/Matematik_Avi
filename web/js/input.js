@@ -32,19 +32,41 @@
   }
 
   // ---------------- WEBSOCKET sürücüsü ----------------
+  // Yarı-açık / takılı soket koruması: köprü FIN göndermeden asılırsa onclose
+  // ATEŞLENMEZ; eski hand.present=true + son x/y sonsuza kadar kalıp imleci
+  // "canlı ama donuk" bırakır. Uygulama-seviyesi bayatlık zamanlayıcısı: son
+  // mesajdan bu yana STALE_MS geçtiyse eli YOK say (imleç park) + görünür rozet.
+  const _now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+  const STALE_MS = 600;   // ~35 kayıp kare @58Hz -> kesin bayat
+
+  let connEl = null, connState = "";
+  function setConn(state, text) {
+    if (!connEl) connEl = document.getElementById("mh-conn");
+    if (!connEl || state === connState) return;
+    connState = state;
+    connEl.classList.toggle("show", state !== "live");   // canlıyken gizli (çocuğu rahatsız etmez)
+    connEl.classList.toggle("ok", state === "live");
+    connEl.classList.toggle("warn", state === "stale");
+    connEl.innerHTML = '<span class="cdot"></span>' + (text || "");
+  }
+
   function startWs() {
     const host = params.get("host") || location.hostname || "127.0.0.1";
     const port = params.get("port") || "8765";
     const url = `ws://${host}:${port}`;
     let backoff = 1000;
+    let lastMsg = 0;
+    setConn("disconnected", "BAĞLANIYOR");
 
     function connect() {
       let ws;
       try { ws = new WebSocket(url); }
-      catch (e) { return retry(); }
+      catch (e) { setConn("disconnected", "BAĞLANTI YOK"); return retry(); }
 
       ws.onopen = () => { backoff = 1000; };
       ws.onmessage = (ev) => {
+        lastMsg = _now();
+        setConn("live");
         try {
           const m = JSON.parse(ev.data);
           if (typeof m.x === "number") hand.x = clamp01(m.x);
@@ -53,13 +75,23 @@
           hand.gesture = m.gesture === "fist" ? "fist" : "open";
         } catch (_) { /* bozuk kare yoksay */ }
       };
-      ws.onclose = () => { hand.present = false; retry(); };
+      ws.onclose = () => { hand.present = false; setConn("disconnected", "BAĞLANTI KESİLDİ"); retry(); };
       ws.onerror = () => { try { ws.close(); } catch (_) {} };
     }
     function retry() {
       setTimeout(connect, backoff);
       backoff = Math.min(backoff * 1.7, 5000); // üstel backoff, ~5s tavan
     }
+
+    // Bayatlık watchdog: bağlıyken veri kesilirse imleci park et + rozeti göster.
+    setInterval(() => {
+      if (connState === "disconnected") return;   // zaten kopuk, retry sürüyor
+      if (lastMsg && _now() - lastMsg > STALE_MS) {
+        hand.present = false;                      // donuk imleci gizle
+        setConn("stale", "VERİ GELMİYOR");
+      }
+    }, 200);
+
     connect();
   }
 
