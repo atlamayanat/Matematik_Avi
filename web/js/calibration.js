@@ -14,6 +14,7 @@
   const pct    = document.getElementById('mk-pct');
   const fx     = document.getElementById('mk-fx');
   const status = document.getElementById('mk-status');
+  const statusEn = document.getElementById('mk-status-en');   // TR yönergesinin altındaki küçük İngilizce
   const lock   = document.getElementById('mk-lock');
 
   let pointer = {x:0, y:0, present:false};
@@ -48,8 +49,8 @@
     armed = pointer.present && d < r.width*0.13;
     target.style.transform = armed ? 'scale(1.07)' : 'scale(1)';
     halo.style.opacity     = armed ? '1' : '0.6';
-    if(armed){ status.textContent='ŞİMDİ ELİNİZİ KAPATIN'; status.style.color='#7df3ff'; }
-    else     { status.textContent='ELİNİZİ ORTAYA GETİRİN'; status.style.color='#eaf6ff'; }
+    if(armed){ status.textContent='ŞİMDİ ELİNİZİ KAPATIN'; status.style.color='#7df3ff'; if(statusEn) statusEn.textContent='Now close your hand'; }
+    else     { status.textContent='ELİNİZİ ORTAYA GETİRİN'; status.style.color='#eaf6ff'; if(statusEn) statusEn.textContent='Bring your hand to the center'; }
   }
 
   // ---- tarama ----
@@ -65,6 +66,7 @@
     lock.innerHTML = '<span style="width:1.2cqmin;height:1.2cqmin;border-radius:50%;background:#FFC83D;box-shadow:0 0 12px #FFC83D;"></span>TARANIYOR · <span id="mk-locknum">0</span>%';
     lock.style.color = '#FFC83D';
     status.textContent = 'TARAMA YAPILIYOR';
+    if(statusEn) statusEn.textContent = 'Scanning…';
     status.style.color = '#FFC83D';
     status.style.textShadow = '0 0 22px rgba(255,200,61,0.65),0 0 40px rgba(255,200,61,0.3)';
 
@@ -157,6 +159,7 @@
 
     pct.textContent = '100%';
     status.textContent = 'TARAMA TAMAMLANDI';
+    if(statusEn) statusEn.textContent = 'Scan complete';
     status.style.color = '#34F5A6';
     status.style.textShadow = '0 0 24px rgba(52,245,166,0.7),0 0 44px rgba(52,245,166,0.35)';
     lock.innerHTML = '<span style="width:1.2cqmin;height:1.2cqmin;border-radius:50%;background:#34F5A6;box-shadow:0 0 12px #34F5A6;"></span>ERİŞİM SAĞLANDI';
@@ -181,6 +184,7 @@
     fp.querySelectorAll('circle').forEach((c,i)=>{ c.style.animationDuration = ['9s','6.5s','4s'][i]; });
     target.style.transform = 'scale(1)';
     status.textContent = 'ELİNİZİ ORTAYA GETİRİN'; status.style.color = '#eaf6ff';
+    if(statusEn) statusEn.textContent = 'Bring your hand to the center';
     status.style.textShadow = '0 0 22px rgba(0,235,255,0.65),0 0 40px rgba(0,235,255,0.35)';
     lock.innerHTML = '<span style="width:1.2cqmin;height:1.2cqmin;border-radius:50%;background:#00EBFF;box-shadow:0 0 12px #00EBFF;animation:mk-pulse-dot 1.6s ease-in-out infinite;"></span>TARAMA BEKLENİYOR';
     lock.style.color = '#7aa9ff';
