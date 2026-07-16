@@ -22,6 +22,14 @@
   let scanning = false;
   let calRaf = null, calPart = null, calDone = null;
   let onComplete = null;
+  // Telemetri hunisi: ekran açıldı -> el görüldü (yaklaşan ziyaretçi) ->
+  // tarama başladı -> tamamlandı. Aradaki kopuşlar "denedi ama beceremedi/vazgeçti".
+  // sawAbsent: ekran açıldığından beri el en az bir kez KAYBOLDU mu? Oyun bitişi/
+  // RESET sonrası önceki oyuncunun eli hâlâ kadrajdadır; o ilk kare "yeni yaklaşan
+  // ziyaretçi" DEĞİLDİR. carry=true ile işaretlenir, rapor bunları saymaz.
+  let bootAt = 0, handSeen = false, sawAbsent = false;
+  function tlog(type, data){ if(MA.telemetry) MA.telemetry.log(type, data); }
+  function sinceBoot(){ return bootAt ? Math.round(performance.now() - bootAt) : 0; }
 
   // ---- arka plan rakamları ----
   (function buildFloaters(){
@@ -57,6 +65,7 @@
   function startScan(){
     if(scanning || !armed) return;
     scanning = true; armed = false;
+    tlog("calib_scan_start", { ms: sinceBoot() });
 
     target.style.transform = 'scale(1.05)';
     halo.style.opacity = '1';
@@ -213,6 +222,11 @@
     try {
       const hand = (window.MA && window.MA.input && window.MA.input.hand) || null;
       if(hand){
+        if(!hand.present) sawAbsent = true;
+        if(hand.present && !handSeen){
+          handSeen = true;                       // ekran başına BİR kez: yaklaşan ziyaretçi sayısı
+          tlog("calib_hand_seen", { ms: sinceBoot(), carry: !sawAbsent });
+        }
         if(hand.present){
           const r = stage.getBoundingClientRect();
           // hand.x/y 0..1 (#stage'e göre); .mk-stage #stage'i kapladığından doğrudan ölçekle
@@ -245,7 +259,9 @@
   // Ekranı baştan kur, tamamlanınca onDone çağır + overlay'i gizle.
   function boot(onDone){
     reset();
+    bootAt = performance.now(); handSeen = false; sawAbsent = false;
     onComplete = function(){
+      tlog("calib_done", { ms: sinceBoot() });
       hide();
       if(typeof onDone === 'function') onDone();
     };

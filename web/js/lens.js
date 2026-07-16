@@ -23,6 +23,23 @@
     _accMs = 0; _accN = 0; _worst = 0;
   }
 
+  // ---- telemetri performans ölçümü (her zaman açık; ~3 toplama/kare) ----
+  // Dakikada bir 'perf' olayı: ort. FPS + en kötü kare süresi. Rapor "oyun
+  // nerede yavaşladı/karmaşıklaştı" sorusunu bununla cevaplar.
+  let _pMs = 0, _pN = 0, _pWorst = 0;
+  function _perfTick(rawMs) {
+    _pN++; _pMs += rawMs; if (rawMs > _pWorst) _pWorst = rawMs;
+    if (_pMs < 60000) return;                        // 60 sn'lik pencere
+    if (MA.telemetry) {
+      MA.telemetry.log("perf", {
+        fps: Math.round(_pN * 1000 / _pMs),
+        worst_ms: Math.round(_pWorst),
+        screen: (MA.game && MA.game.screen) || "?",
+      });
+    }
+    _pMs = 0; _pN = 0; _pWorst = 0;
+  }
+
   const LENS_SMOOTH = 0.22;     // dwell (yavaş) yumuşatma — sabit imleç
   const LENS_MAX_SMOOTH = 0.6;  // hızlı/ani harekette yükselir — gecikmeyi keser
   const LENS_FAR = 0.18;        // hedefe bu normalize mesafede tam responsif
@@ -93,9 +110,10 @@
           const ok = this._armed.correct;
           this._armed.confirm(ok);
           MA.lens.playSelect(this._armed.wx, this._armed.wy);
+          const picked = this._armed.value;   // telemetri: seçilen değer (yanlış analizinde kullanılır)
           this._armed = null;
           this._suspended = true;
-          result = { ok };
+          result = { ok, picked };
         } else {
           this._cooldown = 0.15;
         }
@@ -138,6 +156,7 @@
     const dt = lastT ? Math.min((t - lastT) / 1000, 0.05) : 0.016;
     lastT = t;
     if (FPS_ON) _fpsTick(rawMs);
+    _perfTick(rawMs);                                // telemetri: her zaman açık, dakikada 1 olay
     const hand = MA.input.hand;
 
     // ghost demo attract'ta el yokken devreye girer
@@ -195,8 +214,19 @@
     // kare istisna atıyorsa) sayfayı yeniden yükle -> gözetimsiz kioskta donuk
     // ekranda kalmaktansa kurtar. Sağlıklı çalışmada asla tetiklenmez.
     setInterval(function () {
+      // Gizli/simge durumuna küçültülmüş pencerede rAF DURUR ama setInterval sürer:
+      // watchdog bunu "takıldı" sanıp sonsuz yenileme döngüsüne girer. Gizliyken
+      // nabzı ileri al; pencere görünür olunca ölçüm temiz başlar.
+      if (document.hidden) { _lastGood = _now(); return; }
       if (started && _lastGood && _now() - _lastGood > 6000) {
         if (window.console) console.warn("[lens] render döngüsü takıldı -> sayfa yeniden yükleniyor");
+        // Kanıt kaybolmasın: reload'dan önce olayı beacon ile teslim et.
+        try {
+          if (MA.telemetry) {
+            MA.telemetry.log("watchdog_reload", { screen: (MA.game && MA.game.screen) || "?" });
+            MA.telemetry.flushBeacon();
+          }
+        } catch (_) {}
         try { location.reload(); } catch (_) {}
       }
     }, 2000);

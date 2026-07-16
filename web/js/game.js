@@ -34,8 +34,13 @@
     _prevFist: false, _armedStart: false, _armedReset: false,
     _endTimer: null, _resolveTimer: null, _countTimer: null, _pendingTokens: null,
     _startWorld: null, _resetWorld: null,  // buton merkezleri (cache; resize'da yenilenir)
+    _qAt: 0,                               // telemetri: aktif sorunun seçime açıldığı an (cevap süresi)
+    _absentAt: null, _lostN: 0, _lostMs: 0, // telemetri: oyun sırasında el kaybı bölümleri (kamera sağlığı)
   };
   MA.game = G;
+
+  // Telemetri kısayolu: modül yoksa/bozuksa oyun akışı ASLA etkilenmez.
+  function tlog(type, data) { if (MA.telemetry) MA.telemetry.log(type, data); }
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -76,7 +81,8 @@
   // Kalibrasyon giriş (onboarding) ekranını göster; tamamlanınca attract'a (BAŞLA)
   // geç. Her yeni oyuncunun taramayı yapması için RESET'te ve oyun bitişinde
   // (ve ilk açılışta) çağrılır. Bekleyen tüm zamanlayıcıları enterAttract gibi temizler.
-  function enterCalibration() {
+  function enterCalibration(reason) {
+    tlog("calib_enter", { reason: reason || "unknown", off: CALIB_OFF });
     if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
     if (G._countTimer) { clearTimeout(G._countTimer); G._countTimer = null; }
@@ -96,10 +102,12 @@
   // BAŞLA -> oyun ekranına geç, ilk soruyu arkada sönük göster, 3-2-1 say, sonra canlandır.
   function startCountdown() {
     if (G.screen === "playing") return;
+    tlog("game_start", {});
     setScreen("playing");
     computeResetCenter();
     // tur durumu sıfırla (geri sayım boyunca donuk)
     G.correct = 0; G.seen = 0; G.level = 0; G.combo = 0; G.score = 0;
+    G._absentAt = null; G._lostN = 0; G._lostMs = 0;
     G.timeLeft = RULES.roundSeconds;
     G.running = false; G.locked = true; G.counting = true;
     updateCorrect(); updateLiveScore(0, false); updateTimer();
@@ -139,6 +147,7 @@
     if (G.screen !== "playing") return;
     G.counting = false; G.running = true; G.locked = false;
     if (G._pendingTokens) { selector.setTokens(G._pendingTokens); G._pendingTokens = null; }
+    G._qAt = performance.now();   // geri sayımda hazırlanan ilk soru ŞİMDİ seçime açıldı
     updateTimer();
   }
 
@@ -156,11 +165,15 @@
     const decoys = Q.makeDecoys(G.problem, RULES.decoyVariety);
     const tokens = MA.tokens.genField(G.problem, decoys, RULES.correctCopies, RULES.totalTokens);
     G.seen++;
+    // Soru gösterildi (cevaplanmasa bile kayda geçer: süre bitiminde/reset'te
+    // "hangi soruda takıldı" raporda görünür).
+    tlog("question", { n: G.seen, diff: G.difficulty, prompt: G.problem.prompt, answer: G.problem.answer });
     $("mh-prompt").innerHTML = Q.promptHTML(G.problem.prompt);
     $("mh-progress").innerHTML = `SORU ${G.seen} · <span class="lvl">${d2name(G.difficulty)}</span>`;
     if (activate) {
       selector.setTokens(tokens);
       G.locked = false;
+      G._qAt = performance.now();
     } else {
       selector.suspend();
       G._pendingTokens = tokens;   // geri sayımda cevaplar GİZLİ kalır (oyun mantığı); yalnızca soru görünür
@@ -168,8 +181,18 @@
   }
   function d2name(d) { return d === "orta" ? "ORTA" : d === "zor" ? "ZOR" : "KOLAY"; }
 
-  function onAnswer(ok) {
+  function onAnswer(ok, picked) {
     if (G.screen !== "playing" || !G.running) return;
+    // Cevap olayı: soru + verilen cevap + süre. Raporun kalbi ("nerede çok
+    // hata yapılıyor") bu olaydan hesaplanır.
+    tlog("answer", {
+      ok: !!ok, n: G.seen, diff: G.difficulty,
+      prompt: G.problem ? G.problem.prompt : "?",
+      answer: G.problem ? G.problem.answer : "?",
+      picked: picked != null ? String(picked) : "?",
+      ms: G._qAt ? Math.round(performance.now() - G._qAt) : null,
+      level: G.level, combo: G.combo, score: G.score,
+    });
     if (ok) {
       G.correct++; G.level++; G.combo++;                          // zora doğru; kombo çarpanı GİZLİ büyür
       const mult = Math.min(G.combo, SCORE.comboCap);
@@ -202,6 +225,7 @@
     MA.tokens.clearField();
 
     const elapsed = RULES.roundSeconds - G.timeLeft;   // oyunu tamamlama süresi
+    closeLostEpisode();                                // tur biterken el hâlâ yoksa bölümü kapat
 
     $("mh-result-msg").textContent = timeout ? "Süre doldu!" : "Bitti!";
     $("mh-result-num").textContent = `${G.correct}/${G.seen}`;
@@ -213,9 +237,17 @@
     G._lbHighlight = lb.top3 ? lb.rank : 0;    // attract'a dönünce vurgulanacak satır
     showResultRank(lb);
 
+    // Tur özeti: tamamlanan oyun sayısı + el kaybı istatistiği (kamera sağlığı) buradan.
+    tlog("round_end", {
+      timeout: !!timeout, correct: G.correct, seen: G.seen, score: G.score,
+      level: G.level, elapsed_s: Math.round(elapsed),
+      rank: lb.rank, top3: !!lb.top3,
+      lost_n: G._lostN, lost_s: Math.round(G._lostMs / 100) / 10,
+    });
+
     // Sonuç ekranı gösterildikten sonra attract yerine kalibrasyona dön: sonraki
     // oyuncu yeniden onboarding yapsin.
-    G._endTimer = setTimeout(enterCalibration, RULES.endSummarySeconds * 1000);
+    G._endTimer = setTimeout(() => enterCalibration("game_end"), RULES.endSummarySeconds * 1000);
   }
 
   // Final puanı 0'dan hedefe say (easeOutCubic). Yeni tur eski animasyonu iptal eder.
@@ -256,11 +288,27 @@
     }
   }
 
+  // El kaybı bölümleri (telemetri): oyun sırasında el >=1.5 sn görünmezse bir
+  // "kayıp" sayılır. rAF zaman damgası ile performance.now() aynı orijini
+  // paylaşır; bölüm dışarıdan da (endRound) kapatılabilir.
+  const LOST_MIN_S = 1.5;
+  function closeLostEpisode() {
+    if (G._absentAt == null) return;
+    const gap = performance.now() / 1000 - G._absentAt;
+    if (gap >= LOST_MIN_S) { G._lostN++; G._lostMs += gap * 1000; }
+    G._absentAt = null;
+  }
+
   // ---- her kare (lens.js çağırır) ----
   function onFrame(ctx) {
     const fistEdge = ctx.fist && !G._prevFist;
 
     if (G.screen === "playing") {
+      // el kaybı takibi (yalnızca tur akarken; geri sayım/çözüm beklemesi sayılmaz)
+      if (G.running) {
+        if (!ctx.present) { if (G._absentAt == null) G._absentAt = ctx.t; }
+        else closeLostEpisode();
+      }
       // timer
       if (G.running) {
         G.timeLeft -= ctx.dt;
@@ -269,14 +317,22 @@
       }
       // token seçimi (LensHunt)
       const res = selector.update(ctx.lx, ctx.ly, ctx.present, ctx.fist, ctx.dt);
-      if (res) onAnswer(res.ok);
+      if (res) onAnswer(res.ok, res.picked);
 
       // RESET butonu (sadece token armed değilken — Unity gate)
       let armR = false;
       if (!selector.hasArmed && !G.locked && ctx.present && G._resetWorld) {
         if (world.dist(ctx.lx, ctx.ly, G._resetWorld.wx, G._resetWorld.wy) <= ARM_RESET) {
           armR = true;
-          if (fistEdge) { MA.lens.playSelect(); enterCalibration(); }  // RESET -> her oyuncu icin kalibrasyon
+          if (fistEdge) {
+            MA.lens.playSelect();
+            // Yarıda bırakma kaydı: tur akarken RESET = tamamlanmamış oyun.
+            tlog("reset", {
+              running: G.running, seen: G.seen, correct: G.correct,
+              score: G.score, t_left: Math.round(G.timeLeft),
+            });
+            enterCalibration("reset");   // RESET -> her oyuncu icin kalibrasyon
+          }
         }
       }
       $("mh-reset").classList.toggle("armed", armR);
@@ -353,14 +409,19 @@
     MA.lens.start();
     // ESC -> oyunu/kiosk penceresini kapat (launcher arka süreçleri de durdurur)
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { try { window.close(); } catch (_) {} }
+      if (e.key === "Escape") {
+        // Kapanış kaydı: beacon ile hemen teslim (fetch penceresi kapanmadan).
+        tlog("exit_esc", { screen: G.screen });
+        if (MA.telemetry) MA.telemetry.flushBeacon();
+        try { window.close(); } catch (_) {}
+      }
     });
 
     // İlk karşılama: biyometrik kalibrasyon ekranı. Tamamlanınca BAŞLA ekranına
     // geçilir. Artık aynı ekran her RESET'te ve her oyun bitişinde de gelir
     // (enterCalibration). ?calib=off ile tümüyle atlanır (test).
     if (MA.calib && !CALIB_OFF) {
-      enterCalibration();              // ilk karşılama: kalibrasyon -> attract
+      enterCalibration("boot");        // ilk karşılama: kalibrasyon -> attract
     } else {
       if (MA.calib) MA.calib.hide();
       enterAttract();                  // ekranı kur + buton merkezlerini cache'le

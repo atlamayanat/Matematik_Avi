@@ -32,3 +32,6 @@ python/_vs_*.txt
 # Kiosk supervisor logs + stop-flag (start-kiosk.ps1 -Supervise)
 logs/
 KIOSK-DURDUR.flag
+
+# Ziyaretci telemetrisi + uretilen rapor (Rapor.bat) - calisma verisi, git'e girmez
+data/

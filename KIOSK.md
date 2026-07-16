@@ -3,6 +3,9 @@
 Bu belge, oyunu bir sergi/müze kurulumunda (duvar projeksiyonu + webcam) çalıştırmak içindir.
 Mimari: **Python detektörü** (el takibi) → **WebSocket** → **tarayıcı** (oyun, tam ekran).
 
+> **Festival günü rehberi:** başlatma/durdurma, müdahale noktaları, ziyaretçi verisi
+> ve kontrol listesi tek sayfada → **[FESTIVAL-REHBERI.md](FESTIVAL-REHBERI.md)**.
+
 ---
 
 ## 1. Tek seferlik hazırlık
@@ -109,6 +112,25 @@ Bu, Görev Zamanlayıcı'ya `MatematikAvi-Kiosk` görevini kurar:
 
 **Basit alternatif** (gözetim/log yok): `Win+R` → `shell:startup` → **`Matematik-Avi-Baslat.bat`**
 için kısayol koy. Yalnızca bir kez başlatır; çökme kurtarması yoktur.
+
+---
+
+## 4b. Ziyaretçi verisi (telemetri)
+
+Oyun her olayı (yaklaşan ziyaretçi, kalibrasyon, soru/cevap + süre + seçilen yanlış,
+tur sonu, RESET, bağlantı kopması, JS hatası, FPS, el kaybı) arka planda toplar ve
+web sunucusundaki `POST /telemetry` ucuna gönderir; sunucu bunları
+**`data\telemetry\events_YYYYMMDD.jsonl`** dosyasına yazar (satır başına bir JSON olay).
+Dedektör de dakikada bir `[stats]` satırı basar (`logs\detector_*.out.log`): fps,
+el gören kare yüzdesi, kamera kare hataları.
+
+**Rapor:** kökteki **`Rapor.bat`** → `data\rapor.html` üretir ve açar (huni, günlük/saatlik
+yoğunluk, zorluk/konu bazında doğruluk, en çok yanlış yapılan sorular, teknik sağlık).
+Telemetri oyunu asla etkilemez: sunucu kapalıysa olaylar bellekte bekler; `file://` ile
+açılan sayfada gönderim kapalıdır. `http://localhost:8000/` üzerinden fare ile yapılan
+testler de kaydedilir ama rapor bunları oturum moduna bakarak **ayırır** (gerçek ws
+verisi varsa fare oturumları ziyaretçi istatistiklerine karışmaz). İki makineli
+kurulumda veri, web sunucusunun koştuğu PC'de (PC-A) birikir.
 
 ---
 

@@ -169,6 +169,27 @@ def run_detector(cfg, preview: bool) -> str:
         last_rid = -1
         fps = 0.0
         fps_t = time.monotonic()
+        # Dakikalik saglik istatistigi -> stdout -> logs\detector_*.out.log.
+        # tools/rapor.py bu [stats] satirlarini okuyup "kamera sorun cikardi mi"
+        # bolumunu doldurur. ASCII kalir (Windows log kodlamasindan bagimsiz).
+        st = {"t0": time.monotonic(), "results": 0, "hands": 0, "locked": 0, "cam_fail": 0}
+
+        def _stats_tick(now_mono: float) -> None:
+            if now_mono - st["t0"] < 60.0:
+                return
+            res = st["results"]
+            hands_pct = 100.0 * st["hands"] / res if res else 0.0
+            locked_pct = 100.0 * st["locked"] / res if res else 0.0
+            try:
+                # Istatistik yazimi dedektoru ASLA oldurmemeli: stdout log dosyasina
+                # yonlendirilmis; disk dolarsa (ENOSPC) print OSError firlatir ve bu
+                # periyodik nokta dedektoru dakikada bir cokerten bir dongu yaratirdi.
+                print(f"[stats] fps={fps:.1f} results={res} hands_pct={hands_pct:.0f} "
+                      f"locked_pct={locked_pct:.0f} cam_fail={st['cam_fail']} "
+                      f"win_s={now_mono - st['t0']:.0f}", flush=True)
+            except OSError:
+                pass
+            st.update(t0=now_mono, results=0, hands=0, locked=0, cam_fail=0)
         # Recent depth maps keyed by the submit timestamp, so landmarks are paired
         # with the depth of the SAME frame (inference lags capture by 1-2 frames;
         # sampling the current frame at an old centroid reads background depth
@@ -187,6 +208,8 @@ def run_detector(cfg, preview: bool) -> str:
             frame = cam.read()
             if frame is None:
                 # Transient grab failure; keep the cursor parked, don't busy-spin.
+                st["cam_fail"] += 1
+                _stats_tick(time.monotonic())   # kamera uzun sure kesikken de istatistik aksin
                 sender.send_absent(*last_xy)
                 if preview and (cv2.waitKey(1) & 0xFF) == 27:
                     return _QUIT
@@ -206,7 +229,10 @@ def run_detector(cfg, preview: bool) -> str:
             rid = recognizer.result_id
             if rid != last_rid:
                 last_rid = rid
+                st["results"] += 1
                 observations = recognizer.get_observations()
+                if observations:
+                    st["hands"] += 1
                 # Attach depth (metres) at each palm centre, from the depth map
                 # of the SAME frame the landmarks were computed on (ring lookup
                 # by timestamp), so the selector can separate the playing hand
@@ -236,6 +262,7 @@ def run_detector(cfg, preview: bool) -> str:
                     smoother.reset()
 
                 if sel.locked is not None:
+                    st["locked"] += 1
                     # On a COASTED frame the locked hand was NOT seen this frame
                     # (its observation is stale). Do not feed its gesture to the
                     # FSM - re-serving a stale 'Closed_Fist' would let a hand that
@@ -270,6 +297,7 @@ def run_detector(cfg, preview: bool) -> str:
             inst = 1.0 / max(now - fps_t, frame_budget * 0.5)
             fps = 0.9 * fps + 0.1 * inst if fps else inst
             fps_t = now
+            _stats_tick(now)
 
             if preview:
                 bgr = cv2.cvtColor(frame.rgb, cv2.COLOR_RGB2BGR)

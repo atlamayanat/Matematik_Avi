@@ -84,6 +84,7 @@
 
     const T = {
       el, wx, wy, correct,
+      value: glyph,   // telemetri: yanlış cevapta HANGİ değerin seçildiği raporlanır
       setReveal(r) {
         if (confirmed) return;
         enterReveal();
@@ -123,7 +124,7 @@
       },
       // Havuz: aynı DOM öğesini yeni soru için yeniden kullan (her soruda sil+yarat YOK -> GC azalır).
       reset(g, nx, ny, isCorrect) {
-        T.wx = nx; T.wy = ny; T.correct = isCorrect;
+        T.wx = nx; T.wy = ny; T.correct = isCorrect; T.value = g;
         const p = world.toPct(nx, ny);
         el.style.left = p.left.toFixed(3) + "%";
         el.style.top = p.top.toFixed(3) + "%";

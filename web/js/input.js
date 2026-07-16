@@ -39,10 +39,19 @@
   const _now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
   const STALE_MS = 600;   // ~35 kayıp kare @58Hz -> kesin bayat
 
-  let connEl = null, connState = "";
+  let connEl = null, connState = "", connSince = _now();
   function setConn(state, text) {
     if (!connEl) connEl = document.getElementById("mh-conn");
     if (!connEl || state === connState) return;
+    // Telemetri: her durum geçişi + önceki durumda geçen süre. Rapor "kamerada
+    // sorun oldu mu, toplam ne kadar kesinti yaşandı" sorusunu bundan çıkarır.
+    if (MA.telemetry) {
+      MA.telemetry.log("conn", {
+        state: state, prev: connState || "boot",
+        prev_s: Math.round((_now() - connSince) / 100) / 10,
+      });
+    }
+    connSince = _now();
     connState = state;
     connEl.classList.toggle("show", state !== "live");   // canlıyken gizli (çocuğu rahatsız etmez)
     connEl.classList.toggle("ok", state === "live");
