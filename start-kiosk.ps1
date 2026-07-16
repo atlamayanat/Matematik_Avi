@@ -39,9 +39,28 @@ $logDir = Join-Path $root "logs"
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 
 # --- Python bul ---
-$python = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $python) { $python = (Get-Command py -ErrorAction SilentlyContinue).Source }
-if (-not $python) { Write-Error "Python bulunamadi (python / py PATH'te degil)."; exit 1 }
+# SIRA ONEMLI: once py launcher (python.org kurulumuyla her zaman gelir), sonra
+# PATH'teki python. Cunku taze Win11'de PATH'teki python.exe cogu zaman Microsoft
+# Store'un SAHTE stub'idir (%LOCALAPPDATA%\Microsoft\WindowsApps): varmis gibi
+# gorunur ama hicbir sey calistirmaz -> sunucu/dedektor sessizce olur, tarayici
+# bos "baglanti reddedildi" sayfasi acar. Adayi gercekten calistirarak dogrula.
+function Test-Python([string]$exe) {
+  if (-not $exe) { return $false }
+  try { & $exe -c "import sys" *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
+}
+$python = $null
+foreach ($cand in @(
+    (Get-Command py     -ErrorAction SilentlyContinue).Source,
+    (Get-Command python -ErrorAction SilentlyContinue).Source)) {
+  if (Test-Python $cand) { $python = $cand; break }
+}
+if (-not $python) {
+  Write-Error ("Calisan bir Python bulunamadi. PATH'teki 'python' Microsoft Store " +
+    "stub'i olabilir. Cozum: Python kurulumunu 'Add python.exe to PATH' isaretli " +
+    "yeniden calistirin (Modify) ya da once Kurulum.bat'i deneyin.")
+  exit 1
+}
+Write-Host "[kiosk] python: $python"
 
 # --- transport uyarisi ---
 if (Test-Path $cfg) {

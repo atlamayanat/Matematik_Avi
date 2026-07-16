@@ -138,6 +138,7 @@ kurulumda veri, web sunucusunun koştuğu PC'de (PC-A) birikir.
 
 | Belirti | Kontrol |
 |---|---|
+| Tarayıcı açılıyor ama sayfa hiç yüklenmiyor ("localhost bağlantıyı reddetti") | Web sunucusu başlamamış. Yeni PC'de en sık neden: PATH'teki `python` Microsoft Store'un sahte stub'ı (Kalibrasyon.bat çalışır ama oyun açılmaz). Çözüm: Python kurulumunu "Add python.exe to PATH" işaretli yeniden çalıştır **veya** güncel `start-kiosk.ps1`'i kullan (py launcher'ı önceler, adayı doğrular). `logs\server_*.err.log`'a da bak. |
 | Tarayıcıda sağ-altta "Bağlantı kesildi" | Detektör çalışıyor mu? `config.json` transport `ws`/`both` mı? Port 8765 açık mı? |
 | Hiç veri yok | `cd python; python tools\ws_sniff.py` → kare sayısı 0 ise detektör göndermiyor (transport/preview/present). |
 | El bulunmuyor | Detektörü önizlemeyle aç (`python main.py`) — kutu yeşile dönüyor mu? Işık/mesafe yeterli mi? |
