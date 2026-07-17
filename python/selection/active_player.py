@@ -62,6 +62,17 @@ class ActivePlayerSelector:
         self.max_size = float(ap.max_size)
         self.roi = (float(ap.roi_x_min), float(ap.roi_x_max),
                     float(ap.roi_y_min), float(ap.roi_y_max))
+        # ACQUIRE-only (dar, merkezi) ROI. Yeni bir kilit YALNIZCA kadraj
+        # merkezindeki oyuncudan kurulabilir; oyuncu elini indirince (RELEASE)
+        # kadraj KENARINDA duran bir seyirci eli, en-yakin (min-z) secimle kilidi
+        # KAPAMASIN. Takip ROI'si (self.roi) genis kalir -> bir kez kilitlenen el
+        # kose token'lara uzanirken/hizli supururken dislanmaz. Oyuncu sabit
+        # isarette durdugu icin eli acquire aninda daima merkeze yakindir
+        # (cursor_gain ile de merkezde toplanir), bu yuzden bu dar kapi mesru
+        # oyuncuyu ya da el degistirmeyi engellemez.
+        self.roi_acq = (
+            float(ap.get("roi_acq_x_min", 0.35)), float(ap.get("roi_acq_x_max", 0.65)),
+            float(ap.get("roi_acq_y_min", 0.25)), float(ap.get("roi_acq_y_max", 0.75)))
         self.steal_ratio = float(ap.steal_ratio)
         self.steal_frames = int(ap.steal_frames)
         self.lost_frames_to_release = int(ap.lost_frames_to_release)
@@ -81,9 +92,10 @@ class ActivePlayerSelector:
         self._steal = 0
 
     # --- gates ------------------------------------------------------------
-    def _in_roi(self, obs: HandObservation) -> bool:
+    @staticmethod
+    def _in_box(obs: HandObservation, box) -> bool:
         x, y = obs.centroid01
-        xmin, xmax, ymin, ymax = self.roi
+        xmin, xmax, ymin, ymax = box
         return xmin <= x <= xmax and ymin <= y <= ymax
 
     def _candidates(self, hands: List[HandObservation]) -> List[HandObservation]:
@@ -91,7 +103,7 @@ class ActivePlayerSelector:
         # detection confidence is the only range limit now). Keep the upper bound
         # (hand shoved onto the lens) and the ROI gate (edge bystanders).
         return [h for h in hands
-                if h.span01 < self.max_size and self._in_roi(h)]
+                if h.span01 < self.max_size and self._in_box(h, self.roi)]
 
 
     @staticmethod
@@ -132,9 +144,14 @@ class ActivePlayerSelector:
         return self._track_locked(cands)
 
     def _try_acquire(self, cands: List[HandObservation]) -> SelectionResult:
-        if not cands:
+        # A fresh lock may ONLY form from a hand in the narrow central acquire
+        # ROI: the edge bystander that a RELEASE leaves in the frame cannot be
+        # picked as the new nearest hand. Tracking (below) still uses the wide
+        # ROI so a locked hand is never dropped for reaching to a corner.
+        acq = [h for h in cands if self._in_box(h, self.roi_acq)]
+        if not acq:
             return SelectionResult(None, False, False)
-        pick = self._acquire_pick(cands)
+        pick = self._acquire_pick(acq)
         if pick is None:
             # Ambiguous depth this frame (a large hand lost its depth patch);
             # do not risk locking the far idle hand - wait for depth to return.
