@@ -12,9 +12,17 @@
   "camera": {
     "source": "depth",
     "device_index": 0,
-    "request_width": 960,
-    "request_height": 540,
-    "flip_horizontal": true
+    "request_width": 1280,
+    "request_height": 720,
+    "flip_horizontal": true,
+    "rgb": {
+      "enable_auto_exposure": true,
+      "brightness": 50,
+      "contrast": 70,
+      "gamma": 250,
+      "gain": null,
+      "exposure": null
+    }
   },
   "detection": {
     "model_path": "models/hand_landmarker.task",
@@ -65,7 +73,7 @@
       9
     ],
     "target_inset": 0.06,
-    "cursor_gain": 4.0,
+    "cursor_gain": 5.5,
     "dwell_seconds": 1.5,
     "dwell_radius": 0.02,
     "display_offset_x": 0,

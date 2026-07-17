@@ -84,6 +84,26 @@ class DepthSource(CameraSource):
             if color_sensor is not None and color_sensor.supports(
                     rs.option.auto_exposure_priority):
                 color_sensor.set_option(rs.option.auto_exposure_priority, 0)
+            # RGB goruntu ayarlari (config.camera.rgb): los sergi isiginda parlaklik/
+            # kontrast/gamma/pozlama/gain artirmak eli MediaPipe'a daha GORUNUR yapar
+            # -> isik-kaynakli el kopmasini azaltir. Deger verilmezse (yok/null)
+            # sensor varsayilani korunur (geriye uyumlu). brightness/contrast/gamma
+            # auto-exposure ACIKKEN de calisir; manuel exposure/gain icin once
+            # enable_auto_exposure=false verilmeli. Sahada onizleme ile ayarlanir.
+            rgb = getattr(cfg.camera, "rgb", None)
+            if color_sensor is not None and rgb is not None:
+                ae = rgb.get("enable_auto_exposure", None)
+                if ae is not None and color_sensor.supports(rs.option.enable_auto_exposure):
+                    color_sensor.set_option(rs.option.enable_auto_exposure, 1.0 if ae else 0.0)
+                for opt, key in ((rs.option.brightness, "brightness"),
+                                 (rs.option.contrast, "contrast"),
+                                 (rs.option.gamma, "gamma"),
+                                 (rs.option.gain, "gain"),
+                                 (rs.option.exposure, "exposure")):
+                    v = rgb.get(key, None)
+                    if v is not None and color_sensor.supports(opt):
+                        color_sensor.set_option(opt, float(v))
+                        print(f"[camera] RGB {key}={v}")
         except Exception:   # noqa: BLE001 - cosmetic option; never block startup
             pass
 

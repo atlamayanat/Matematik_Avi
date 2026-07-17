@@ -4,8 +4,10 @@ __pycache__/
 .venv/
 venv/
 
-# Model (re-download with: python download_model.py)
-python/models/*.task
+# Model: hand_landmarker.task ARTIK git'e DAHIL (GitHub'dan indirilen her surumde +
+# cevrimdisi sergi PC'sinde hazir gelsin; "handmarker bulunamadi" + Kurulum.bat sarti
+# bitsin). Kullanilmayan eski gesture_recognizer.task (~8MB) haric tutulur.
+python/models/gesture_recognizer.task
 
 # Per-site calibration (regenerate with: python main.py --calibrate)
 python/calib.json
