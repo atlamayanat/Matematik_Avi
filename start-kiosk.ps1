@@ -91,7 +91,11 @@ function Start-Server {
   $serve = Join-Path $py "serve_nocache.py"
   $o = New-LogPath "server" "out"; $e = New-LogPath "server" "err"
   Write-Host "[kiosk] web sunucusu -> http://localhost:$HttpPort  (log: $logDir)"
-  return Start-Process -FilePath $python -ArgumentList @("-u", $serve, "$HttpPort", $web) `
+  # DIKKAT: Start-Process -ArgumentList ogeleri TIRNAKLAMAZ; kurulum yolu bosluk
+  # icerirse (or. "C:\Matematik_Avi-son (2)\...") python yolu boslukta bolunmus
+  # alir ve "can't open file" ile olur -> tarayici "localhost reddetti" gosterir.
+  # Bosluklu yollari elle tirnakla.
+  return Start-Process -FilePath $python -ArgumentList @("-u", "`"$serve`"", "$HttpPort", "`"$web`"") `
     -PassThru -WindowStyle Hidden -RedirectStandardOutput $o -RedirectStandardError $e
 }
 

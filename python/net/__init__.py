@@ -16,13 +16,13 @@ class CompositeSender:
     def __init__(self, senders):
         self._senders = [s for s in senders if s is not None]
 
-    def send_hand(self, nx, ny, present, gesture):
+    def send_hand(self, nx, ny, present, gesture, approaching=False):
         for s in self._senders:
-            s.send_hand(nx, ny, present, gesture)
+            s.send_hand(nx, ny, present, gesture, approaching)
 
-    def send_absent(self, last_nx, last_ny):
+    def send_absent(self, last_nx, last_ny, approaching=False):
         for s in self._senders:
-            s.send_absent(last_nx, last_ny)
+            s.send_absent(last_nx, last_ny, approaching)
 
     def close(self):
         for s in self._senders:

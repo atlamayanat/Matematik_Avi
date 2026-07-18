@@ -56,6 +56,16 @@ class GestureFSM:
     def state(self) -> str:
         return self._committed
 
+    @property
+    def fist_ratio(self) -> float:
+        """Fraction of the current window voting FIST (0..1). The cursor
+        extrapolation uses this to DAMP prediction as a real fist builds up, so
+        it does not overshoot at the moment of selection - while a single stray
+        fist frame (ratio ~1/window) barely damps and the sweep stays live."""
+        if not self._recent:
+            return 0.0
+        return sum(1 for s in self._recent if s == FIST) / len(self._recent)
+
     def reset(self) -> None:
         """Reset to SEARCHING (call when the active player changes)."""
         self._recent.clear()

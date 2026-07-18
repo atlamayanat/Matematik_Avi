@@ -97,16 +97,44 @@ class HandRecognizer:
         self._curl_ratio = float(det.get("fist_curl_ratio", _DEF_FIST_CURL_RATIO))
         self._min_curled = int(det.get("fist_min_curled", _DEF_FIST_MIN_CURLED))
 
-        options = mp_vision.HandLandmarkerOptions(
-            base_options=mp_python.BaseOptions(model_asset_path=model_path),
-            running_mode=mp_vision.RunningMode.LIVE_STREAM,
-            num_hands=int(cfg.detection.num_hands),
-            min_hand_detection_confidence=float(cfg.detection.min_hand_detection_confidence),
-            min_hand_presence_confidence=float(cfg.detection.min_hand_presence_confidence),
-            min_tracking_confidence=float(cfg.detection.min_tracking_confidence),
-            result_callback=self._on_result,  # REQUIRED for LIVE_STREAM
-        )
-        self._landmarker = mp_vision.HandLandmarker.create_from_options(options)
+        # Delegate: on Windows MediaPipe Tasks has NO GPU delegate, so CPU is the
+        # only real choice; naming it explicitly documents intent.
+        delegate_name = str(det.get("delegate", "cpu") or "cpu").lower()
+
+        def _build(delegate):
+            try:
+                base_options = mp_python.BaseOptions(
+                    model_asset_path=model_path, delegate=delegate)
+            except Exception:   # noqa: BLE001 - very old Tasks builds lack `delegate`
+                base_options = mp_python.BaseOptions(model_asset_path=model_path)
+            options = mp_vision.HandLandmarkerOptions(
+                base_options=base_options,
+                running_mode=mp_vision.RunningMode.LIVE_STREAM,
+                num_hands=int(cfg.detection.num_hands),
+                min_hand_detection_confidence=float(cfg.detection.min_hand_detection_confidence),
+                min_hand_presence_confidence=float(cfg.detection.min_hand_presence_confidence),
+                min_tracking_confidence=float(cfg.detection.min_tracking_confidence),
+                result_callback=self._on_result,  # REQUIRED for LIVE_STREAM
+            )
+            return mp_vision.HandLandmarker.create_from_options(options)
+
+        want_gpu = delegate_name == "gpu"
+        delegate = mp_python.BaseOptions.Delegate.CPU
+        if want_gpu:
+            try:
+                delegate = mp_python.BaseOptions.Delegate.GPU
+            except Exception:   # noqa: BLE001 - enum missing on this build
+                delegate = mp_python.BaseOptions.Delegate.CPU
+        # The GPU-unavailable error surfaces at create_from_options (graph init),
+        # NOT at BaseOptions construction - so the CPU fallback must wrap the
+        # ACTUAL build, or a delegate="gpu" misconfig on Windows crash-loops.
+        try:
+            self._landmarker = _build(delegate)
+        except Exception:   # noqa: BLE001
+            if not want_gpu:
+                raise   # a real CPU-build failure -> let the supervisor surface it
+            print("[detection] GPU delegate kullanilamiyor -> CPU'ya dusuldu.")
+            self._landmarker = _build(mp_python.BaseOptions.Delegate.CPU)
 
     # --- MediaPipe worker thread: just stash the newest result -------------
     def _on_result(self, result, output_image, timestamp_ms):  # noqa: ANN001

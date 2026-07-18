@@ -40,8 +40,12 @@
     _pMs = 0; _pN = 0; _pWorst = 0;
   }
 
-  const LENS_SMOOTH = 0.22;     // dwell (yavaş) yumuşatma — sabit imleç
-  const LENS_MAX_SMOOTH = 0.6;  // hızlı/ani harekette yükselir — gecikmeyi keser
+  // Python artık 60Hz tahminli (daha az gecikmeli) sinyal yolladığı için web
+  // yumuşatmasını yükselttik (bir gecikme katmanı silinir). Çok titrek gelirse
+  // LENS_SMOOTH'u 0.4-0.5'e indir; Python tahmini (predict_enabled) kapalıysa da
+  // 0.3 civarı daha uygundur.
+  const LENS_SMOOTH = 0.6;      // dwell (yavaş) yumuşatma — sabit imleç
+  const LENS_MAX_SMOOTH = 0.85; // hızlı/ani harekette yükselir — gecikmeyi keser
   const LENS_FAR = 0.18;        // hedefe bu normalize mesafede tam responsif
 
   // ---- LensHunt: token seçim beyni (Unity birebir) ----
@@ -162,9 +166,12 @@
     // ghost demo attract'ta el yokken devreye girer
     const ghosting = MA.game && MA.game.screen === "attract" && !hand.present;
     if (ghosting) idle += dt; else idle = 0;
+    // Yaklaşan ziyaretçi (derinlik-blob) varsa ghost demoyu HEMEN uyandır —
+    // çocuğu içeri çekmek için 5 sn boşta beklemeyi atla.
+    const approaching = !!(hand && hand.approaching);
 
     let tx = hand.x, ty = hand.y, present = hand.present;
-    if (ghosting && idle > 5 && MA.game.ghostTarget) {
+    if (ghosting && (idle > 5 || approaching) && MA.game.ghostTarget) {
       const g = MA.game.ghostTarget(t / 1000); // {x,y,present,fist}
       tx = g.x; ty = g.y; present = g.present;
       hand._ghostFist = g.fist; // game kendi ghost-fist'ini okur

@@ -24,12 +24,17 @@ class OscSender:
         self._client = SimpleUDPClient(cfg.osc.host, int(cfg.osc.port))
         self._address = "/hand"
 
-    def send_hand(self, nx: float, ny: float, present: bool, gesture: str) -> None:
+    def send_hand(self, nx: float, ny: float, present: bool, gesture: str,
+                  approaching: bool = False) -> None:
+        # approaching is accepted for a uniform sender interface but NOT sent:
+        # the OSC /hand contract stays exactly 4 typed args (Unity/OscJack). The
+        # attract flag only travels over the WebSocket transport.
         self._client.send_message(
             self._address,
             [float(nx), float(ny), 1 if present else 0, str(gesture)],
         )
 
-    def send_absent(self, last_nx: float, last_ny: float) -> None:
+    def send_absent(self, last_nx: float, last_ny: float,
+                    approaching: bool = False) -> None:
         """No active player: park the cursor, force the searching state."""
-        self.send_hand(last_nx, last_ny, False, SEARCHING)
+        self.send_hand(last_nx, last_ny, False, SEARCHING, approaching)

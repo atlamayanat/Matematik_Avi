@@ -34,3 +34,15 @@ def test_cursor_smoother_two_axis_stays_in_range():
     s(0.0, 0.5, 0.5)
     bx, by = s(0.016, 0.6, 0.4)
     assert 0.0 <= bx <= 1.0 and 0.0 <= by <= 1.0
+
+
+def test_velocity_and_value_exposed_for_extrapolation():
+    s = CursorSmoother(1.0, 0.6, 1.0)
+    assert s.value() is None            # ilk örnekten önce yok
+    s(0.0, 0.5, 0.5)
+    s(0.1, 0.7, 0.5)
+    vx, vy = s.velocity()
+    assert vx > 0.0                     # +x hareket -> pozitif hız tahmini
+    assert abs(vy) < 1e-6               # y sabit
+    val = s.value()
+    assert val is not None and 0.0 <= val[0] <= 1.0

@@ -155,6 +155,11 @@ def run_calibration(cfg) -> bool:
     cam = create_camera(cfg)
     recognizer = HandRecognizer(cfg)
     flip = bool(cfg.camera.flip_horizontal)
+    # Hand the factory colour intrinsics to the homography so undistort_rgb can
+    # kick in (no-op on a webcam / when the option is off). Must happen BEFORE
+    # the fit at the end of capture.
+    if hasattr(cam, "intrinsics") and cam.intrinsics is not None:
+        homography.set_intrinsics(cam.intrinsics[0], cam.intrinsics[1])
 
     captured_src: List[Tuple[float, float]] = []   # camera-px palm centroids
     idx = 0
@@ -270,6 +275,13 @@ def run_calibration(cfg) -> bool:
                             fit_err = homography.fit(captured_src, dst_px)
                             print(f"[calibrate] fit done, error = "
                                   f"{fit_err * 100:.2f}% of screen")
+                            res = homography.residuals
+                            if res:
+                                worst = max(range(len(res)), key=lambda i: res[i])
+                                print("[calibrate] nokta-basi rezidu (% ekran): "
+                                      + " ".join(f"{i + 1}:{r * 100:.2f}"
+                                                 for i, r in enumerate(res))
+                                      + f"  (en kotu: nokta {worst + 1})")
                             phase = "verify"
                         except (ValueError, cv2.error) as exc:
                             # Degenerate capture (e.g. helper held SPACE and all 9

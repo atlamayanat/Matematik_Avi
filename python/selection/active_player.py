@@ -69,6 +69,17 @@ class ActivePlayerSelector:
         # Depth gates (metres). Used only when BOTH hands carry a valid z_m.
         self.assoc_max_dz = float(ap.get("assoc_max_dz", 0.4))
         self.steal_z_margin = float(ap.get("steal_z_margin", 0.25))
+        # Acquire latch hysteresis: a provisional pick must persist this many
+        # frames before it LOCKS, so a bystander sweeping through the centre
+        # cannot instant-latch. 1 = lock immediately (previous behaviour).
+        self.acquire_frames = int(ap.get("acquire_frames", 1))
+        # Steal/lost thresholds preferably in SECONDS: converted to frames each
+        # update from the live fps, so a thermal fps drop (hot tent) does not
+        # silently shift the timing. 0 / no fps -> use the frame counts above.
+        self.steal_seconds = float(ap.get("steal_seconds", 0.0) or 0.0)
+        self.lost_seconds = float(ap.get("lost_seconds", 0.0) or 0.0)
+        self._steal_frames_eff = self.steal_frames
+        self._lost_frames_eff = self.lost_frames_to_release
         # Prefer the NEGOTIATED camera resolution (the driver may ignore the
         # request); fall back to the requested one when no camera is around.
         w, h = cam_res if cam_res else (cfg.camera.request_width,
@@ -79,6 +90,8 @@ class ActivePlayerSelector:
         self._locked_z: Optional[float] = None   # last KNOWN depth of the lock
         self._lost = 0
         self._steal = 0
+        self._acquire_anchor: Optional[tuple] = None   # provisional pick centroid
+        self._acquire_count = 0
 
     # --- gates ------------------------------------------------------------
     def _in_roi(self, obs: HandObservation) -> bool:
@@ -124,7 +137,16 @@ class ActivePlayerSelector:
         return z_near
 
     # --- main update ------------------------------------------------------
-    def update(self, hands: List[HandObservation]) -> SelectionResult:
+    def update(self, hands: List[HandObservation], fps: Optional[float] = None) -> SelectionResult:
+        # Convert any second-based thresholds to frames using the live fps, so a
+        # thermal throttle that drops fps does not silently shift the timing.
+        self._steal_frames_eff = (max(1, round(self.steal_seconds * fps))
+                                  if (fps and fps > 1e-3 and self.steal_seconds > 0.0)
+                                  else self.steal_frames)
+        self._lost_frames_eff = (max(1, round(self.lost_seconds * fps))
+                                 if (fps and fps > 1e-3 and self.lost_seconds > 0.0)
+                                 else self.lost_frames_to_release)
+
         cands = self._candidates(hands)
 
         if self._locked is None:
@@ -133,16 +155,42 @@ class ActivePlayerSelector:
 
     def _try_acquire(self, cands: List[HandObservation]) -> SelectionResult:
         if not cands:
+            self._acquire_anchor = None
+            self._acquire_count = 0
             return SelectionResult(None, False, False)
         pick = self._acquire_pick(cands)
         if pick is None:
             # Ambiguous depth this frame (a large hand lost its depth patch);
             # do not risk locking the far idle hand - wait for depth to return.
+            self._acquire_anchor = None
+            self._acquire_count = 0
             return SelectionResult(None, False, False)
+        if self.acquire_frames <= 1:
+            return self._commit_lock(pick)
+        # Latch hysteresis: the provisional pick must stay near the FIRST-frame
+        # anchor for acquire_frames frames (a moving anchor would only reject
+        # teleport-scale jumps). A bystander sweeping through the centre drifts
+        # off the fixed anchor -> the count resets and it never latches; acquire
+        # latency is invisible (there is no cursor yet).
+        if (self._acquire_anchor is not None and
+                _dist(pick.centroid01, self._acquire_anchor, self._y_scale)
+                <= self.assoc_max_jump):
+            self._acquire_count += 1
+        else:
+            # (Re)start the latch and PIN the anchor to this pick's position.
+            self._acquire_count = 1
+            self._acquire_anchor = pick.centroid01
+        if self._acquire_count >= self.acquire_frames:
+            return self._commit_lock(pick)
+        return SelectionResult(None, False, False)
+
+    def _commit_lock(self, pick: HandObservation) -> SelectionResult:
         self._locked = pick
         self._locked_z = pick.z_m
         self._lost = 0
         self._steal = 0
+        self._acquire_anchor = None
+        self._acquire_count = 0
         return SelectionResult(self._locked, True, False)
 
     def _track_locked(self, cands: List[HandObservation]) -> SelectionResult:
@@ -178,11 +226,13 @@ class ActivePlayerSelector:
             # Hand gone (out of frame / not detected): hold the last hand, then
             # release after K frames. We do NOT release for being far/small.
             self._lost += 1
-            if self._lost >= self.lost_frames_to_release:
+            if self._lost >= self._lost_frames_eff:
                 self._locked = None
                 self._locked_z = None
                 self._lost = 0
                 self._steal = 0
+                self._acquire_anchor = None
+                self._acquire_count = 0
                 return SelectionResult(None, False, True)
             # Keep reporting the last known hand while we wait it out, but flag
             # it COASTED: this HandObservation is stale (not seen this frame), so
@@ -219,7 +269,7 @@ class ActivePlayerSelector:
             # kill. Wait until the challenger carries depth and is provably nearer.
         if stealing:
             self._steal += 1
-            if self._steal >= self.steal_frames:
+            if self._steal >= self._steal_frames_eff:
                 self._locked = challenger
                 self._locked_z = challenger.z_m
                 self._steal = 0

@@ -71,6 +71,51 @@ class MonotonicMs:
         return ts
 
 
+def _approaching(depth, near_z: float, frac_thresh: float) -> bool:
+    """True when a large fraction of the CENTRAL ROI is nearer than near_z - i.e.
+    a body has stepped into the play zone. ~0 cost (one numpy mask on a slice);
+    used only to wake the attract screen, and only computed when no player is
+    locked. The 0.2 m floor rejects a lens smudge / a hand shoved onto the lens."""
+    try:
+        h, w = depth.shape[:2]
+        roi = depth[int(0.30 * h):int(0.70 * h), int(0.30 * w):int(0.70 * w)]
+        total = roi.size
+        if total == 0:
+            return False
+        near = int(((roi > 0.2) & (roi < near_z)).sum())
+        return (float(near) / float(total)) >= frac_thresh
+    except Exception:   # noqa: BLE001 - never let the attract probe break the loop
+        return False
+
+
+def _fist_damp(mode: str, fsm, committed: str) -> float:
+    """Extrapolation damping in [0,1]. 'damped' scales DOWN as the fist vote
+    builds (a single stray fist frame barely damps; a real held fist freezes the
+    cursor). 'freeze' hard-freezes on the committed FIST. Anything else = none."""
+    if mode in ("damped", "damp"):
+        return max(0.0, 1.0 - fsm.fist_ratio)
+    if mode in ("freeze", "true", "1", "on", "yes"):
+        return 0.0 if committed == FIST else 1.0
+    return 1.0
+
+
+def _extrapolate(anchor, vel, anchor_t, now, lead_s, horizon_s, gain, damp):
+    """Constant-velocity dead reckoning of the locked cursor, capped at
+    horizon_s and clamped to [0,1] so an out-of-range hand never flings the
+    cursor off-screen. anchor = last smoothed pos, vel = last smoothed speed."""
+    ahead = (now - anchor_t) + lead_s
+    if ahead < 0.0:
+        ahead = 0.0
+    if ahead > horizon_s:
+        ahead = horizon_s
+    k = ahead * gain * damp
+    x = anchor[0] + vel[0] * k
+    y = anchor[1] + vel[1] * k
+    x = 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+    y = 0.0 if y < 0.0 else 1.0 if y > 1.0 else y
+    return (x, y)
+
+
 def _draw_overlay(bgr, cfg, observations, sel, committed, present,
                   mapped, fps, calibrated):
     h, w = bgr.shape[:2]
@@ -151,6 +196,20 @@ def run_detector(cfg, preview: bool) -> str:
         fsm = GestureFSM(cfg)
         smoother = CursorSmoother(cfg.smoothing.min_cutoff, cfg.smoothing.beta,
                                   cfg.smoothing.d_cutoff)
+        # 60 Hz predictive extrapolation (dead reckoning) config.
+        _sm = cfg.smoothing
+        predict_enabled = bool(_sm.get("predict_enabled", False))
+        predict_lead_s = float(_sm.get("predict_lead_ms", 0)) / 1000.0
+        predict_horizon_s = float(_sm.get("predict_horizon_cap_ms", 50)) / 1000.0
+        predict_gain = float(_sm.get("predict_gain", 1.0))
+        predict_freeze = str(_sm.get("predict_freeze_on_fist", "damped")).lower()
+        # Depth-blob attract trigger config.
+        _ap = cfg.active_player
+        attract_near_z = float(_ap.get("attract_near_z_m", 0.0) or 0.0)
+        attract_frac = float(_ap.get("attract_pixel_frac", 0.0) or 0.0)
+        _net_cfg = cfg.get("net", None)
+        send_approaching = bool(getattr(_net_cfg, "send_approaching", False)) \
+            if _net_cfg is not None else False
         sender = create_sender(cfg)   # OSC | WebSocket | her ikisi (config.json net.transport)
         clock = MonotonicMs()
         _dbg_path = os.environ.get("MA_DEBUG")  # set to a logpath to trace selection
@@ -161,6 +220,12 @@ def run_detector(cfg, preview: bool) -> str:
             cv2.namedWindow(win, cv2.WINDOW_NORMAL)
 
         last_xy = (0.5, 0.5)
+        # Extrapolation state: anchor = last smoothed pos, its wall time, and the
+        # last smoothed velocity. Reset on every lock change so the cursor never
+        # flings using the previous player's motion.
+        pred_anchor = (0.5, 0.5)
+        pred_anchor_t = time.monotonic()
+        pred_vel = (0.0, 0.0)
         committed = "searching"
         mapped = (0.5, 0.5)
         present = False
@@ -169,6 +234,12 @@ def run_detector(cfg, preview: bool) -> str:
         last_rid = -1
         fps = 0.0
         fps_t = time.monotonic()
+        # SEPARATE inference-rate clock. The selector's steal/lost counters tick
+        # once per NEW inference (~20-30 Hz), NOT once per loop (~60 Hz), so the
+        # second-based thresholds must be converted with the INFERENCE rate, not
+        # the loop/heartbeat `fps` above (else lost_seconds=1.0 would take ~2.4 s).
+        inf_fps = 0.0
+        inf_fps_t = time.monotonic()
         # Dakikalik saglik istatistigi -> stdout -> logs\detector_*.out.log.
         # tools/rapor.py bu [stats] satirlarini okuyup "kamera sorun cikardi mi"
         # bolumunu doldurur. ASCII kalir (Windows log kodlamasindan bagimsiz).
@@ -230,6 +301,16 @@ def run_detector(cfg, preview: bool) -> str:
             if rid != last_rid:
                 last_rid = rid
                 st["results"] += 1
+                # Inference-rate EMA (this branch runs once per new inference).
+                # Feeds the selector's second->frame conversion with the TRUE
+                # tick rate, so it stays correct when thermal throttle drops the
+                # inference rate below the ~60 Hz loop rate.
+                _now_inf = time.monotonic()
+                _inf_dt = _now_inf - inf_fps_t
+                inf_fps_t = _now_inf
+                if _inf_dt > 1e-3:
+                    _inf_inst = 1.0 / _inf_dt
+                    inf_fps = 0.9 * inf_fps + 0.1 * _inf_inst if inf_fps else _inf_inst
                 observations = recognizer.get_observations()
                 if observations:
                     st["hands"] += 1
@@ -250,16 +331,18 @@ def run_detector(cfg, preview: bool) -> str:
                             obs.z_m = sample_depth(dmap,
                                                    obs.centroid_px[0],
                                                    obs.centroid_px[1])
-                sel = selector.update(observations)
+                sel = selector.update(observations, fps=inf_fps)
                 if _dbg_path and len(observations) >= 2:
                     _dbg_log(_dbg_path, observations, sel, selector)
 
                 if sel.just_acquired:
                     smoother.reset()
                     fsm.reset()
+                    pred_vel = (0.0, 0.0)   # don't fling on the new player's first frame
                 if sel.just_released:
                     fsm.reset()
                     smoother.reset()
+                    pred_vel = (0.0, 0.0)
 
                 if sel.locked is not None:
                     st["locked"] += 1
@@ -277,16 +360,39 @@ def run_detector(cfg, preview: bool) -> str:
                     t = time.monotonic()
                     mapped = smoother(t, raw[0], raw[1])
                     last_xy = mapped
+                    # Refresh the extrapolation anchor + velocity from this fresh
+                    # smoothed sample; heartbeat frames dead-reckon from here.
+                    pred_anchor = mapped
+                    pred_anchor_t = t
+                    pred_vel = smoother.velocity()
                     present = True
                 else:
                     committed = "searching"
                     present = False
 
-            # ~60 Hz OSC heartbeat; position only advances on a fresh inference.
+            # Approaching flag (attract): fraction of the central ROI nearer than
+            # attract_near_z. Computed ONLY when no player is locked, so it is
+            # truly ~0 cost during play; wakes the web attract loop.
+            approaching = False
+            if send_approaching and not present and frame.depth is not None \
+                    and attract_near_z > 0.0 and attract_frac > 0.0:
+                approaching = _approaching(frame.depth, attract_near_z, attract_frac)
+
+            # ~60 Hz heartbeat. With prediction on, the heartbeat EXTRAPOLATES the
+            # locked cursor along its last smoothed velocity so it moves at 60 Hz
+            # instead of stepping at the ~20-30 Hz inference rate; damped as a
+            # fist builds so it does not overshoot at the moment of selection.
             if present:
-                sender.send_hand(mapped[0], mapped[1], True, committed)
+                if predict_enabled:
+                    damp = _fist_damp(predict_freeze, fsm, committed)
+                    sx, sy = _extrapolate(pred_anchor, pred_vel, pred_anchor_t,
+                                          time.monotonic(), predict_lead_s,
+                                          predict_horizon_s, predict_gain, damp)
+                else:
+                    sx, sy = mapped
+                sender.send_hand(sx, sy, True, committed, approaching)
             else:
-                sender.send_absent(*last_xy)
+                sender.send_absent(last_xy[0], last_xy[1], approaching)
 
             # FPS (EMA). Floor the interval at half the frame budget so a rare
             # near-zero dt (loop body overran the budget, next loop ran fast)

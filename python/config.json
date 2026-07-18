@@ -7,21 +7,50 @@
   "net": {
     "transport": "ws",
     "ws_host": "0.0.0.0",
-    "ws_port": 8765
+    "ws_port": 8765,
+    "tcp_nodelay": true,
+    "send_approaching": true
   },
   "camera": {
     "source": "depth",
     "device_index": 0,
     "request_width": 960,
     "request_height": 540,
-    "flip_horizontal": true
+    "flip_horizontal": true,
+    "depth_visual_preset": "high_density",
+    "laser_power": 225,
+    "emitter_enabled": 1,
+    "depth_gain": 16,
+    "decimation_magnitude": 2,
+    "disparity_transform": true,
+    "spatial": {
+      "enabled": true,
+      "magnitude": 2,
+      "alpha": 0.5,
+      "delta": 20,
+      "holes_fill": 0
+    },
+    "temporal": {
+      "enabled": false,
+      "alpha": 0.4,
+      "delta": 20,
+      "persistency": 3
+    },
+    "hole_filling": false,
+    "rgb_lock": {
+      "enabled": false,
+      "exposure": 156,
+      "gain": 16,
+      "white_balance": 4600
+    }
   },
   "detection": {
     "model_path": "models/hand_landmarker.task",
-    "num_hands": 2,
-    "min_hand_detection_confidence": 0.35,
-    "min_hand_presence_confidence": 0.4,
-    "min_tracking_confidence": 0.35,
+    "num_hands": 3,
+    "min_hand_detection_confidence": 0.4,
+    "min_hand_presence_confidence": 0.5,
+    "min_tracking_confidence": 0.3,
+    "delegate": "cpu",
     "fist_curl_ratio": 0.7,
     "fist_min_curled": 3
   },
@@ -35,18 +64,28 @@
     "steal_frames": 10,
     "lost_frames_to_release": 16,
     "assoc_max_jump": 0.35,
-    "assoc_max_dz": 0.4,
-    "steal_z_margin": 0.25
+    "assoc_max_dz": 0.35,
+    "steal_z_margin": 0.35,
+    "acquire_frames": 4,
+    "steal_seconds": 0.8,
+    "lost_seconds": 1.0,
+    "attract_near_z_m": 1.2,
+    "attract_pixel_frac": 0.04
   },
   "gesture_fsm": {
-    "window": 7,
-    "fist_votes": 4,
+    "window": 9,
+    "fist_votes": 6,
     "open_votes": 4
   },
   "smoothing": {
     "min_cutoff": 1.0,
-    "beta": 0.6,
-    "d_cutoff": 1.0
+    "beta": 0.9,
+    "d_cutoff": 1.0,
+    "predict_enabled": true,
+    "predict_lead_ms": 24,
+    "predict_horizon_cap_ms": 50,
+    "predict_freeze_on_fist": "damped",
+    "predict_gain": 1.0
   },
   "calibration": {
     "file": "calib.json",
@@ -65,7 +104,10 @@
     "dwell_seconds": 1.5,
     "dwell_radius": 0.05,
     "display_offset_x": 0,
-    "accept_error": 0.03
+    "accept_error": 0.02,
+    "fit_method": "ransac",
+    "ransac_reproj_frac": 0.02,
+    "undistort_rgb": false
   },
   "preview": {
     "enabled": true,

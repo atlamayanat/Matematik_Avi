@@ -6,7 +6,9 @@
   const MA = (window.MA = window.MA || {});
 
   // Paylaşılan normalize durum — tüm tüketiciler bunu okur.
-  const hand = { x: 0.5, y: 0.5, present: false, gesture: "open" };
+  // approaching: derinlik-blob "yaklaşan ziyaretçi" bayrağı (yalnızca ws sürücüsü
+  // ve Python net.send_approaching=true iken dolar; attract'ı uyandırmak için).
+  const hand = { x: 0.5, y: 0.5, present: false, gesture: "open", approaching: false };
 
   const params = new URLSearchParams(location.search);
   const mode = (params.get("input") || "mouse").toLowerCase();
@@ -82,6 +84,7 @@
           if (typeof m.y === "number") hand.y = clamp01(m.y);
           hand.present = !!m.present;
           hand.gesture = m.gesture === "fist" ? "fist" : "open";
+          hand.approaching = !!m.approaching;   // alan yoksa false (geriye uyumlu)
         } catch (_) { /* bozuk kare yoksay */ }
       };
       ws.onclose = () => { hand.present = false; setConn("disconnected", "BAĞLANTI KESİLDİ"); retry(); };

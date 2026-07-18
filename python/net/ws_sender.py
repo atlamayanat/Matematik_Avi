@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 import threading
 
 try:
@@ -37,6 +38,12 @@ class WsSender:
         net = cfg.get("net", None)
         self._host = str(getattr(net, "ws_host", "0.0.0.0")) if net is not None else "0.0.0.0"
         self._port = int(getattr(net, "ws_port", 8765)) if net is not None else 8765
+        # TCP_NODELAY: disable Nagle so a small /hand frame is not held ~40 ms
+        # waiting to coalesce (rare on loopback but a real sneaky jump). Off by
+        # default keeps old behaviour.
+        self._tcp_nodelay = bool(getattr(net, "tcp_nodelay", False)) if net is not None else False
+        # Whether to include the attract "approaching" flag in the JSON.
+        self._send_approaching = bool(getattr(net, "send_approaching", False)) if net is not None else False
 
         self._clients = set()
         self._loop = None
@@ -74,6 +81,16 @@ class WsSender:
             self._loop.close()
 
     async def _handler(self, ws, *args):  # *args: eski websockets sürümlerindeki 'path'
+        if self._tcp_nodelay:
+            # Kapatma: Nagle + gecikmeli-ACK localhost'ta nadir de olsa ~40 ms
+            # sinsi sicrama yapabilir. Soket her websockets surumunde ayni yerde
+            # olmayabilir -> guvenli dene/gec.
+            try:
+                sock = ws.transport.get_extra_info("socket")
+                if sock is not None:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except Exception:  # noqa: BLE001 - kozmetik; baglantiyi asla dusurme
+                pass
         self._clients.add(ws)
         try:
             await ws.wait_closed()
@@ -89,24 +106,29 @@ class WsSender:
         )
 
     # ---- OscSender ile aynı arayüz ----
-    def send_hand(self, nx: float, ny: float, present: bool, gesture: str) -> None:
+    def send_hand(self, nx: float, ny: float, present: bool, gesture: str,
+                  approaching: bool = False) -> None:
         # İstemci yoksa ya da loop hazır değilse boşa iş yapma.
         if self._loop is None or not self._clients:
             return
-        msg = json.dumps({
+        payload = {
             "x": float(nx),
             "y": float(ny),
             "present": bool(present),
             "gesture": "fist" if gesture == FIST else "open",  # searching -> open
-        })
+        }
+        if self._send_approaching:
+            payload["approaching"] = bool(approaching)   # attract: yaklasan ziyaretci
+        msg = json.dumps(payload)
         try:
             asyncio.run_coroutine_threadsafe(self._broadcast(msg), self._loop)  # fire-and-forget
         except RuntimeError:
             pass  # loop kapanıyor
 
-    def send_absent(self, last_nx: float, last_ny: float) -> None:
+    def send_absent(self, last_nx: float, last_ny: float,
+                    approaching: bool = False) -> None:
         """Aktif oyuncu yok: kursoru park et, arama durumunu zorla (OscSender ile aynı)."""
-        self.send_hand(last_nx, last_ny, False, SEARCHING)
+        self.send_hand(last_nx, last_ny, False, SEARCHING, approaching)
 
     def close(self) -> None:
         """Sunucuyu temiz kapat ve portu serbest bırak (recalibrate yeniden-başlatması için kritik)."""

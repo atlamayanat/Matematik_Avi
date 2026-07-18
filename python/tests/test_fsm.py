@@ -67,7 +67,11 @@ def test_shipped_config_commits_within_fist_votes(cfg):
             commits_at = i
             break
     assert commits_at == int(cfg.gesture_fsm.get("fist_votes", 4))
-    assert commits_at <= 5     # ~<=5 çıkarım karesi (@20-30Hz ~<200ms) = "bekleme yok"
+    # 9/6/4 config'i girisi BILINCLI sertlestirir (hayalet yumruk = yanlis
+    # matematik cevabini boymak icin): commit ~6 cikarim karesi (@20-30Hz
+    # ~200-300ms). Imlec FSM'den ayrik (60Hz coast/tahmin) oldugu icin bu
+    # gecikme oyuncuya YANSIMAZ. Regresyon guvenligi icin ust sinir <=6.
+    assert commits_at <= 6
 
 
 def test_shipped_config_releases_promptly_on_loose_open(cfg):

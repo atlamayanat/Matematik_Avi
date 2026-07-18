@@ -45,6 +45,17 @@ class OneEuroFilter:
         self._dx_prev = 0.0
         self._t_prev = None
 
+    @property
+    def dx_hat(self) -> float:
+        """Last smoothed speed estimate (value units per SECOND). Reused for
+        dead-reckoning extrapolation on the 60 Hz heartbeat frames."""
+        return self._dx_prev
+
+    @property
+    def value(self) -> Optional[float]:
+        """Last smoothed value, or None before the first sample."""
+        return self._x_prev
+
     def __call__(self, t: float, x: float) -> float:
         if self._x_prev is None or self._t_prev is None:
             self._x_prev = x
@@ -88,6 +99,17 @@ class CursorSmoother:
     def reset(self) -> None:
         self._fx.reset()
         self._fy.reset()
+
+    def velocity(self) -> Tuple[float, float]:
+        """Smoothed speed (units/sec) per axis, for dead-reckoning extrapolation."""
+        return (self._fx.dx_hat, self._fy.dx_hat)
+
+    def value(self) -> Optional[Tuple[float, float]]:
+        """Last smoothed (x, y), or None before the first sample."""
+        vx, vy = self._fx.value, self._fy.value
+        if vx is None or vy is None:
+            return None
+        return (vx, vy)
 
     def __call__(self, t: float, x: float, y: float) -> Tuple[float, float]:
         return self._fx(t, x), self._fy(t, y)
