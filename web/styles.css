@@ -124,6 +124,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--space);color:v
 #mh-prompt .op-root{color:#FF8FE4;}  /* √ macenta */
 #mh-prompt .op-pow{color:#FF8FE4;}   /* ² ³ ! macenta ailesi */
 #mh-prompt .op-paren{color:#A9A4D6;} /* ( ) soluk */
+/* Basit kesir: pay üstte, payda altta, arada çocukların net göreceği düz çizgi. */
+.math-frac{display:inline-flex;flex-direction:column;align-items:stretch;justify-content:center;vertical-align:-0.16em;line-height:0.72;min-width:0.66em;margin:0 0.04em;}
+.math-frac-num,.math-frac-den{display:block;font-size:0.56em;line-height:0.72;text-align:center;padding-inline:0.08em;}
+.math-frac-num{padding-bottom:0.045em;border-bottom:0.08em solid currentColor;}
+.math-frac-den{padding-top:0.045em;}
 #mh-reset{position:absolute;top:5cqmin;right:5cqmin;z-index:40;display:flex;align-items:center;gap:1.2cqmin;
   padding:1.6cqmin 3cqmin;border-radius:999px;background:rgba(255,74,214,0.10);border:1px solid rgba(255,74,214,0.45);
   box-shadow:0 0 14px rgba(255,74,214,0.2);font-family:'JetBrains Mono',monospace;font-size:2.3cqmin;letter-spacing:0.22em;color:#ffb8ec;text-transform:uppercase;

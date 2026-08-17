@@ -27,10 +27,12 @@ param(
   [switch]$NoServer,     # web zaten servis ediliyor
   [switch]$KeepRunning,  # tarayıcı kapanınca arka süreçleri DURDURMA (normal mod)
   [switch]$Supervise,    # bileşenleri canlı tut + çökeni yeniden başlat (gözetimsiz kiosk)
-  [switch]$Preview       # detektörü önizleme penceresiyle başlat (varsayılan: --no-preview)
+  [switch]$Preview,      # detektörü önizleme penceresiyle başlat (varsayılan: --no-preview)
+  [switch]$MouseInput    # hızlı test: kamera/detektör yok, imleç + basılı tık
 )
 
 $ErrorActionPreference = "Stop"
+if ($MouseInput) { $NoDetector = $true }
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $web  = Join-Path $root "web"
 $py   = Join-Path $root "python"
@@ -126,7 +128,8 @@ function Start-Browser {
   if (-not $browser) { Write-Error "Chrome/Edge bulunamadi."; exit 1 }
   # cb=<rastgele>: no-store sunucuyla birlikte ilk açılışta da taze HTML garanti.
   $cb  = Get-Random
-  $url = "http://localhost:$HttpPort/?input=ws&host=$DetectorHost&port=$WsPort&cb=$cb"
+  $inputMode = if ($MouseInput) { "mouse" } else { "ws" }
+  $url = "http://localhost:$HttpPort/?input=$inputMode&host=$DetectorHost&port=$WsPort&cb=$cb"
   # --app + tam ekran: sayfadaki window.close() (ESC) pencereyi gerçekten kapatır.
   # --disable-session-crashed-bubble: çökme sonrası yeniden açılışta "sayfaları geri
   # yükle?" balonu çıkmasın (supervise yeniden-başlatmasında kritik).
@@ -137,6 +140,7 @@ function Start-Browser {
     "--user-data-dir=$prof",
     "--no-first-run", "--no-default-browser-check", "--disable-fre",
     "--noerrdialogs", "--disable-infobars",
+    "--autoplay-policy=no-user-gesture-required",
     "--disable-session-crashed-bubble", "--disable-features=Translate",
     "--check-for-update-interval=31536000"
   )

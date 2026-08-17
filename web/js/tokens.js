@@ -2,7 +2,7 @@
    Oynanış matematiği Unity dünya birimlerinde (ortho size 5 -> 17.78 x 10). */
 (function () {
   const MA = (window.MA = window.MA || {});
-  const { ri, rv } = MA.questions;
+  const { ri, rv, answerHTML } = MA.questions;
 
   // ---- Dünya koordinatları (Unity kamera ortho size 5, 16:9) ----
   const HALF_H = 5, HALF_W = 5 * 16 / 9; // 8.8889
@@ -64,7 +64,7 @@
     const glow = el.querySelector(".t-glow");
     const ring = el.querySelector(".t-ring");
     const tg = el.querySelector(".t-glyph");
-    tg.textContent = glyph;
+    tg.innerHTML = answerHTML(glyph);
     parent.appendChild(el);
 
     let confirmed = false, mode = "", lastR = -1;
@@ -128,7 +128,7 @@
         const p = world.toPct(nx, ny);
         el.style.left = p.left.toFixed(3) + "%";
         el.style.top = p.top.toFixed(3) + "%";
-        tg.textContent = g;
+        tg.innerHTML = answerHTML(g);
         confirmed = false; mode = ""; lastR = -1;
         el.style.transition = "none";
         el.style.opacity = 0;

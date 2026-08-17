@@ -22,6 +22,7 @@
   let scanning = false;
   let calRaf = null, calPart = null, calDone = null;
   let onComplete = null;
+  const SCAN_DURATION_MS = 2500;
   // Telemetri hunisi: ekran açıldı -> el görüldü (yaklaşan ziyaretçi) ->
   // tarama başladı -> tamamlandı. Aradaki kopuşlar "denedi ama beceremedi/vazgeçti".
   // sawAbsent: ekran açıldığından beri el en az bir kez KAYBOLDU mu? Oyun bitişi/
@@ -29,6 +30,10 @@
   // ziyaretçi" DEĞİLDİR. carry=true ile işaretlenir, rapor bunları saymaz.
   let bootAt = 0, handSeen = false, sawAbsent = false;
   function tlog(type, data){ if(MA.telemetry) MA.telemetry.log(type, data); }
+  function sfx(name, value){
+    try { if(MA.audio && typeof MA.audio[name] === 'function') MA.audio[name](value); }
+    catch (_) {}
+  }
   function sinceBoot(){ return bootAt ? Math.round(performance.now() - bootAt) : 0; }
 
   // ---- arka plan rakamları ----
@@ -66,6 +71,7 @@
     if(scanning || !armed) return;
     scanning = true; armed = false;
     tlog("calib_scan_start", { ms: sinceBoot() });
+    sfx('calibrationStart', SCAN_DURATION_MS);
 
     target.style.transform = 'scale(1.05)';
     halo.style.opacity = '1';
@@ -85,10 +91,11 @@
 
     startParticles();
 
-    const dur = 2500, t0 = performance.now();
+    const dur = SCAN_DURATION_MS, t0 = performance.now();
     const step = (now)=>{
       const p = Math.min(1, (now-t0)/dur);
       const e = p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+      sfx('calibrationProgress', e);
       ring.style.setProperty('--p', (e*360).toFixed(1)+'deg');
       const pv = Math.round(e*100);
       pct.textContent = pv+'%';
@@ -129,6 +136,7 @@
   }
 
   function finishScan(){
+    sfx('calibrationComplete');
     stopParticles();
     halo.style.background = 'radial-gradient(circle,rgba(52,245,166,0.34),transparent 62%)';
 
@@ -183,6 +191,7 @@
   }
 
   function reset(){
+    sfx('calibrationCancel');
     clearTimeout(calDone); clearInterval(calPart); cancelAnimationFrame(calRaf);
     scanning = false; armed = false; fx.innerHTML = '';
     ring.style.opacity = '0'; pct.style.opacity = '0'; pct.textContent = '0%';
@@ -252,6 +261,7 @@
     if(!driverRaf) driverRaf = requestAnimationFrame(driverFrame);
   }
   function hide(){
+    sfx('calibrationCancel');
     active = false;
     if(driverRaf){ cancelAnimationFrame(driverRaf); driverRaf = null; }
     stage.classList.add('mk-off');

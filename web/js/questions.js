@@ -1,5 +1,5 @@
-/* questions.js — QuestionGenerator.cs + MakeDecoys'un BİREBİR portu.
-   Otorite: Unity MathLens (prototipin 8 sabit sorusu DEĞİL). Prosedürel üretim. */
+/* questions.js — Unity QuestionGenerator.cs + MakeDecoys tabanlı prosedürel üretim.
+   Sergiye özel kolay/orta/zor havuz düzeni bu dosyada özelleştirilir. */
 (function () {
   const MA = (window.MA = window.MA || {});
 
@@ -18,34 +18,32 @@
   function Add()  { const a = ri(5,50), b = ri(5,50); return prob(`${a} + ${b}`, String(a+b)); }
   function Sub()  { const a = ri(12,60), b = ri(2,a); return prob(`${a} ${MINUS} ${b}`, String(a-b)); }
   function DivExact() { const b = ri(2,10), c = ri(2,10); return prob(`${b*c} ${DIV} ${b}`, String(c)); }
-  function SquareOrRoot() {
-    const a = ri(2,13);
-    return rv() < 0.5 ? prob(`${a}${SUP2}`, String(a*a)) : prob(`${SQRT}${a*a}`, String(a));
-  }
-  function Fraction() {
-    const table = [
-      [`${QUART} + ${QUART}`, HALF],
-      [`${HALF} + ${QUART}`,  TQRT],
-      [`${QUART} + ${HALF}`,  TQRT],
-      [`${TQRT} ${MINUS} ${QUART}`, HALF],
-      [`${HALF} ${MINUS} ${QUART}`, QUART],
-      [`${TQRT} ${MINUS} ${HALF}`,  QUART],
-    ];
-    const p = table[ri(0, table.length)];
-    return prob(p[0], p[1]);
-  }
   function Easy() {
-    switch (ri(0,6)) {
+    switch (ri(0,4)) {
       case 0: return Mul();
       case 1: return Add();
       case 2: return Sub();
-      case 3: return DivExact();
-      case 4: return SquareOrRoot();
-      default: return Fraction();
+      default: return DivExact();
     }
   }
 
   // ---------------- MEDIUM ----------------
+  // Kolay havuzundan taşınan temel kare/kök: küçük sayılar, yarı yarıya.
+  function MedSimpleSquareOrRoot() {
+    const a = ri(2,13);
+    return rv() < 0.5 ? prob(`${a}${SUP2}`, String(a*a)) : prob(`${SQRT}${a*a}`, String(a));
+  }
+  // Eski 6 basit kesir şablonu yarıya indirildi: 3 temel ilişki,
+  // üç farklı doğru sonucu da (1/4, 1/2, 3/4) kapsıyor.
+  function MedFraction() {
+    const table = [
+      [`${QUART} + ${QUART}`, HALF],
+      [`${HALF} + ${QUART}`, TQRT],
+      [`${TQRT} ${MINUS} ${HALF}`, QUART],
+    ];
+    const p = table[ri(0, table.length)];
+    return prob(p[0], p[1]);
+  }
   function MedMul()    { const a = ri(11,20), b = ri(3,10); return prob(`${a} ${MUL} ${b}`, String(a*b)); }
   function MedSquare() { const a = ri(5,16); return prob(`${a}${SUP2}`, String(a*a)); }
   function MedRoot()   { const a = ri(6,16); return prob(`${SQRT}${a*a}`, String(a)); }
@@ -61,13 +59,15 @@
     return prob(`${a} ${MINUS} ${b}`, String(ans), [String(b-a)]); // işaret-yoksay tuzağı
   }
   function Medium() {
-    switch (ri(0,6)) {
+    switch (ri(0,8)) {
       case 0: return MedMul();
       case 1: return MedSquare();
       case 2: return MedRoot();
       case 3: return MedCube();
       case 4: return MedOrder();
-      default: return MedNegative();
+      case 5: return MedNegative();
+      case 6: return MedSimpleSquareOrRoot();
+      default: return MedFraction();
     }
   }
 
@@ -184,17 +184,30 @@
     "√": "op-root", "²": "op-pow", "³": "op-pow", "!": "op-pow",
     "(": "op-paren", ")": "op-paren",
   };
+  const FRACTION_PARTS = {
+    [QUART]: ["1", "4"],
+    [HALF]: ["1", "2"],
+    [TQRT]: ["3", "4"],
+  };
   function escHTML(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-  function promptHTML(prompt) {
+  function mathHTML(value, colorOperators) {
     let out = "";
-    for (const ch of String(prompt)) {
-      const cls = OP_CLASS[ch];
+    for (const ch of String(value)) {
+      const fraction = FRACTION_PARTS[ch];
+      if (fraction) {
+        out += `<span class="math-frac"><span class="math-frac-num">${fraction[0]}</span>`
+             + `<span class="math-frac-den">${fraction[1]}</span></span>`;
+        continue;
+      }
+      const cls = colorOperators ? OP_CLASS[ch] : null;
       out += cls ? `<span class="op ${cls}">${escHTML(ch)}</span>` : escHTML(ch);
     }
     return out;
   }
+  function promptHTML(prompt) { return mathHTML(prompt, true); }
+  function answerHTML(answer) { return mathHTML(answer, false); }
 
   const DIFF_NAME = { kolay: "Kolay", orta: "Orta", zor: "Zor" };
 
-  MA.questions = { next, makeDecoys, shuffle, ri, rv, DIFF_NAME, promptHTML };
+  MA.questions = { next, makeDecoys, shuffle, ri, rv, DIFF_NAME, promptHTML, answerHTML };
 })();

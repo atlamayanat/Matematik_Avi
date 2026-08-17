@@ -41,6 +41,11 @@
 
   // Telemetri kısayolu: modül yoksa/bozuksa oyun akışı ASLA etkilenmez.
   function tlog(type, data) { if (MA.telemetry) MA.telemetry.log(type, data); }
+  // Ses de aynı şekilde opsiyonel ve hata-yalıtımlı: ses arızası oyunu durduramaz.
+  function sfx(name, value) {
+    try { if (MA.audio && typeof MA.audio[name] === "function") MA.audio[name](value); }
+    catch (_) {}
+  }
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -65,6 +70,7 @@
 
   // ---- durumlar ----
   function enterAttract() {
+    sfx("setUrgent", false);
     if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
     if (G._countTimer) { clearTimeout(G._countTimer); G._countTimer = null; }
@@ -82,6 +88,7 @@
   // geç. Her yeni oyuncunun taramayı yapması için RESET'te ve oyun bitişinde
   // (ve ilk açılışta) çağrılır. Bekleyen tüm zamanlayıcıları enterAttract gibi temizler.
   function enterCalibration(reason) {
+    sfx("stopAll");
     tlog("calib_enter", { reason: reason || "unknown", off: CALIB_OFF });
     if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
@@ -197,10 +204,12 @@
       G.correct++; G.level++; G.combo++;                          // zora doğru; kombo çarpanı GİZLİ büyür
       const mult = Math.min(G.combo, SCORE.comboCap);
       G.score += (SCORE.base[G.difficulty] || SCORE.base.kolay) * mult;  // yanlışta puan DÜŞMEZ
+      sfx("correct");
       flash("Doğru!", "var(--green)");                            // merkezde sadece olumlama (puan/kombo gösterilmez)
     } else {
       G.combo = 0;                                                // kombo sıfırlanır
       G.level = Math.max(0, G.level - 1);                         // bir kademe kolaya
+      sfx("wrong");
       flash("Yanlış", "var(--red)");
     }
     updateCorrect();
@@ -220,6 +229,7 @@
 
   function endRound(timeout) {
     G.running = false;
+    sfx("setUrgent", false);
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; } // sarkan resolve'u temizle
     selector.suspend();
     MA.tokens.clearField();
@@ -376,7 +386,9 @@
     const s = Math.ceil(G.timeLeft);
     const str = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
     if (str !== _lastTimerStr) { $("mh-timer").textContent = str; _lastTimerStr = str; }  // saniye değişmedikçe DOM'a yazma
-    $("mh-timer").classList.toggle("low", G.running && G.timeLeft <= RULES.lowTimeThreshold);
+    const low = G.running && G.timeLeft > 0 && G.timeLeft <= RULES.lowTimeThreshold;
+    $("mh-timer").classList.toggle("low", low);
+    sfx("setUrgent", low ? G.timeLeft : false);
   }
   let _flashTimer = null;
   function flash(msg, color) {
