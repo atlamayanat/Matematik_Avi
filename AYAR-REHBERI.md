@@ -219,6 +219,51 @@ Zararsız; sorun çıkarırsa `tcp_nodelay: false`.
 
 ---
 
+## 9b. Ses (gizli menü — klavyeden **S**)
+
+Ses seviyeleri `config.json`'da DEĞİL, oyunun içindedir. Oyun ekranındayken
+klavyeden **S** tuşuna bas: sağ alt köşede bir panel açılır. Tekrar **S** ya da
+paneldeki **Kapat** ile kapanır. Ekranda ipucu yoktur (ziyaretçi görmesin).
+
+| Kaydırıcı | Ne yapar |
+|---|---|
+| Ana ses | her şeyi birlikte kısar/açar |
+| Müzik | yalnızca arka plan müziği |
+| Efektler | tüm oyun sesleri birlikte |
+
+Ayrıca **Sessiz** kutusu var.
+
+**EFEKTLER — TEK TEK** başlığına tıklayınca 18 sesin her biri için ayrı bir
+kaydırıcı ve **▶** düğmesi açılır (doğru cevap, yanlış cevap, sayaç tik, ekran
+geçişi, attract pingi…). Kaydırıcıyı bıraktığında o ses otomatik çalar —
+hoparlörde dinleyerek ayarlamak için oyunu başlatmaya gerek yok. Bir sesi
+tamamen susturmak için 0'a çek.
+
+Tipik saha kullanımı: salon gürültülüyse **Ana ses**'i aç; müzik konuşmayı
+bastırıyorsa **Müzik**'i kıs; tek bir efekt (ör. token üzerinde gezinme tiki)
+kalabalıkta rahatsız ediyorsa listeden yalnızca onu kıs.
+
+**Aralık %0-200.** %100 tasarım seviyesidir; kaydırıcıda turuncu bir çizgiyle
+işaretli. Üstüne çıkarsan değer turuncu yazılır — yükselttiğini görebilesin
+diye. Zincirin sonunda bir limiter var, yani ses kırpılmaz; ama birkaç ses aynı
+anda %150+ iken karışım yassılaşır. Salon **sürekli** gürültülüyse önce
+hoparlörün kendi ses düğmesini aç, %200'ü son çare olarak kullan.
+
+- Değerler tarayıcıda saklanır: **bir kez ayarla, her açılışta korunur.**
+  Kalıcı Chrome profili kullanıldığı için kiosk yeniden başlasa da kalır.
+- **Menü açıkken el/fare girdisi oyuna geçmez** — ayar yaparken kameradaki el
+  yanlışlıkla BAŞLA/RESET'e basmaz.
+- `Escape` kioskı kapattığı için kapatma tuşu olarak kullanılmadı.
+- Seviye zinciri: `LEVEL[efekt]` × efekt kaydırıcısı × Efektler × Ana ses.
+  `web/js/audio.js` içindeki `LEVEL` tablosu **tasarım varsayılanıdır**; menüde
+  bulduğun ayarı kalıcı varsayılan yapmak istersen oraya yaz ve menüden
+  "Varsayılana dön" de.
+
+Sesleri yeniden üretmek/değiştirmek: `web/audio/README.md` +
+`python tools\gen_audio.py`.
+
+---
+
 ## 10. Saha ayar protokolü (uygulama sırası)
 
 1. **Fiziksel:** projektör + kamera + oyuncu geometrisi, kamerayı rijit sabitle, dolgu

@@ -34,6 +34,9 @@
     _prevFist: false, _armedStart: false, _armedReset: false,
     _endTimer: null, _resolveTimer: null, _countTimer: null, _pendingTokens: null,
     _startWorld: null, _resetWorld: null,  // buton merkezleri (cache; resize'da yenilenir)
+    _screenReady: false,                   // ilk setScreen'de geçiş sesi çalmasın
+    _accentTimer: null,                    // attract'ta seyrek davet pingi
+    _celebrateTimer: null,                 // ilk-3 kutlaması (puan sayımından sonra)
     _qAt: 0,                               // telemetri: aktif sorunun seçime açıldığı an (cevap süresi)
     _absentAt: null, _lostN: 0, _lostMs: 0, // telemetri: oyun sırasında el kaybı bölümleri (kamera sağlığı)
   };
@@ -51,9 +54,14 @@
   const $ = (id) => document.getElementById(id);
   const screens = { attract: null, playing: null, result: null };
 
+  // İlk ekran kurulumunda whoosh çalmaz (boot'ta sebepsiz ses olmasın); yalnız
+  // gerçek ekran değişimlerinde.
   function setScreen(name) {
+    const changed = G.screen !== name && G._screenReady;
     G.screen = name;
+    G._screenReady = true;
     for (const k in screens) screens[k].classList.toggle("active", k === name);
+    if (changed) sfx("transition");
   }
 
   // DOM elemanı merkezini normalize sahne koordinatına çevir
@@ -74,6 +82,7 @@
     if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
     if (G._countTimer) { clearTimeout(G._countTimer); G._countTimer = null; }
+    if (G._celebrateTimer) { clearTimeout(G._celebrateTimer); G._celebrateTimer = null; }
     G.running = false; G.locked = false; G.counting = false; G._armedStart = false; G._armedReset = false;
     selector.suspend();
     MA.tokens.clearField();
@@ -82,6 +91,22 @@
     MA.leaderboard.render($("mh-lb-list"), G._lbHighlight || 0);  // tabloyu güncelle, yeni kaydı vurgula
     G._lbHighlight = 0;
     computeStartCenter();
+    startAccentLoop();
+  }
+
+  // Attract ekranında ~14-22 sn'de bir tek yumuşak ping: boş ekranı davetkâr
+  // kılar, tekrar eden bir jingle gibi bunaltmaz. Ekran değişince durur.
+  function startAccentLoop() {
+    stopAccentLoop();
+    const tick = () => {
+      if (G.screen !== "attract") { G._accentTimer = null; return; }
+      sfx("attractAccent");
+      G._accentTimer = setTimeout(tick, 14000 + Math.random() * 8000);
+    };
+    G._accentTimer = setTimeout(tick, 6000);
+  }
+  function stopAccentLoop() {
+    if (G._accentTimer) { clearTimeout(G._accentTimer); G._accentTimer = null; }
   }
 
   // Kalibrasyon giriş (onboarding) ekranını göster; tamamlanınca attract'a (BAŞLA)
@@ -89,10 +114,12 @@
   // (ve ilk açılışta) çağrılır. Bekleyen tüm zamanlayıcıları enterAttract gibi temizler.
   function enterCalibration(reason) {
     sfx("stopAll");
+    stopAccentLoop();
     tlog("calib_enter", { reason: reason || "unknown", off: CALIB_OFF });
     if (G._endTimer) { clearTimeout(G._endTimer); G._endTimer = null; }
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; }
     if (G._countTimer) { clearTimeout(G._countTimer); G._countTimer = null; }
+    if (G._celebrateTimer) { clearTimeout(G._celebrateTimer); G._celebrateTimer = null; }
     G.running = false; G.locked = false; G.counting = false;
     G._armedStart = false; G._armedReset = false;
     selector.suspend();
@@ -110,6 +137,7 @@
   function startCountdown() {
     if (G.screen === "playing") return;
     tlog("game_start", {});
+    stopAccentLoop();
     setScreen("playing");
     computeResetCenter();
     // tur durumu sıfırla (geri sayım boyunca donuk)
@@ -127,6 +155,7 @@
       if (i < seq.length) {
         const isGo = i === seq.length - 1;
         showCount(seq[i], isGo);
+        sfx(isGo ? "countdownGo" : "countdownTick");
         i++;
         G._countTimer = setTimeout(step, isGo ? 650 : 1000);
       } else {
@@ -230,6 +259,7 @@
   function endRound(timeout) {
     G.running = false;
     sfx("setUrgent", false);
+    sfx(timeout ? "timeUp" : "roundEnd");
     if (G._resolveTimer) { clearTimeout(G._resolveTimer); G._resolveTimer = null; } // sarkan resolve'u temizle
     selector.suspend();
     MA.tokens.clearField();
@@ -273,7 +303,7 @@
       const k = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - k, 3);
       el.textContent = String(Math.round(from + (target - from) * e));
-      if (k < 1) requestAnimationFrame(step);
+      if (k < 1) { if (target > from) sfx("scoreTick"); requestAnimationFrame(step); }  // audio.js kendi içinde throttle'lar
       else el.textContent = String(target);
     })(performance.now());
   }
@@ -290,6 +320,12 @@
         ? `${medal} En yüksek puanı yaptın!`
         : `${medal} En yüksek ${lb.rank}. puanı yaptın!`;
       el.classList.add("show", "celebrate");
+      // Puan sayımı (~900 ms) bittikten sonra çalsın; üstüne binerse ikisi de kaybolur.
+      if (G._celebrateTimer) clearTimeout(G._celebrateTimer);
+      G._celebrateTimer = setTimeout(() => {
+        G._celebrateTimer = null;
+        if (G.screen === "result") sfx("celebrate");
+      }, 950);
     } else if (lb.score > 0) {
       el.textContent = `Sıralaman: ${lb.rank}.`;
       el.classList.add("show");
@@ -311,6 +347,11 @@
 
   // ---- her kare (lens.js çağırır) ----
   function onFrame(ctx) {
+    // Gizli ayar menüsü (S) açıkken oyun girdiyi yok sayar: operatör ayar
+    // yaparken kameradaki el yanlışlıkla BAŞLA/RESET'e basmasın. _prevFist yine
+    // güncellenir, yoksa menü kapanınca sarkan bir yumruk kenarı tetiklenirdi.
+    if (MA.settings && MA.settings.isOpen()) { G._prevFist = ctx.fist; return; }
+
     const fistEdge = ctx.fist && !G._prevFist;
 
     if (G.screen === "playing") {
@@ -346,6 +387,7 @@
         }
       }
       $("mh-reset").classList.toggle("armed", armR);
+      if (armR && !G._armedReset) sfx("btnArm");     // yükselen kenar: hedefe girdi
       G._armedReset = armR;
 
     } else if (G.screen === "attract") {
@@ -356,6 +398,7 @@
         armed = true;
       }
       const sb = $("mh-start"); if (sb) sb.classList.toggle("armed", armed);
+      if (armed && !G._armedStart) sfx("btnArm");    // yükselen kenar: BAŞLA'ya girdi
       G._armedStart = armed;
       if (fistEdge && armed) { MA.lens.playSelect(); startCountdown(); }
     }
@@ -419,6 +462,9 @@
     });
     MA.input.start();
     MA.lens.start();
+    // Sakin arka plan müziği: açılıştan kapanışa kesintisiz döner. Autoplay izni
+    // yoksa audio.js bayrağı tutar ve izin açılır açılmaz kendiliğinden başlar.
+    sfx("musicStart");
     // ESC -> oyunu/kiosk penceresini kapat (launcher arka süreçleri de durdurur)
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {

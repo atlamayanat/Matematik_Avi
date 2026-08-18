@@ -35,3 +35,10 @@ KIOSK-DURDUR.flag
 
 # Ziyaretci telemetrisi + uretilen rapor (Rapor.bat) - calisma verisi, git'e girmez
 data/
+
+# ElevenLabs API anahtari (tools/gen_audio.py okur) - ASLA git'e girmez
+key.txt
+
+# Ses uretim ciktisi: varyantlar + secim ekrani. Secilenler web/audio/ altina
+# kopyalanir ve git'e girer; ham varyantlar girmez (python tools/gen_audio.py).
+web/audio/gen/

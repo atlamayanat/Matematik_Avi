@@ -4,6 +4,12 @@
   const MA = (window.MA = window.MA || {});
   const world = MA.world;
 
+  // Ses opsiyonel ve hata-yalıtımlı: ses arızası render döngüsünü durduramaz.
+  function sfx(name, value) {
+    try { if (MA.audio && typeof MA.audio[name] === "function") MA.audio[name](value); }
+    catch (_) {}
+  }
+
   // ---- (opt-in) FPS ölçer — SADECE ?fps=1 ile çalışır; normal çalışmayı etkilemez ----
   // Kiosk donanımında doğrulamak için URL'ye ?fps=1 ekle; sol-üstte canlı FPS + en kötü kare süresi.
   const FPS_ON = new URLSearchParams(location.search).get("fps") === "1";
@@ -99,10 +105,16 @@
         } else this._disarmTimer = 0;
 
         if (this._armed == null) {
-          if (nearest != null && dN <= this.armRadius) { this._armed = nearest; this._switchTimer = 0; }
+          if (nearest != null && dN <= this.armRadius) {
+            this._armed = nearest; this._switchTimer = 0;
+            sfx("hover");                        // token'a kilitlendi: çok kısık tik
+          }
         } else if (nearest != null && nearest !== this._armed && dN <= this.armRadius) {
           if (dN < dA - this.switchMargin) this._switchTimer += dt; else this._switchTimer = 0;
-          if (this._switchTimer >= this.switchDwell) { this._armed = nearest; this._switchTimer = 0; }
+          if (this._switchTimer >= this.switchDwell) {
+            this._armed = nearest; this._switchTimer = 0;
+            sfx("hover");                        // komşu token'a geçiş
+          }
         }
       }
       if (this._armed != null) this._armed.setArmed(true);
@@ -134,7 +146,11 @@
   const _now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
   let idle = 0; // attract'ta el yokken geçen süre (ghost demo için)
 
+  // Yumruk onayının sesi. Token seçiminde doğru/yanlış tonundan hemen önce
+  // gelir (kuru klik = girdi alındı, ardından sonuç tonu) ve BAŞLA/RESET
+  // butonlarında tek başına çalar.
   function playSelect(wx, wy) {
+    sfx("select");
     if (!irisEl) return;
     let off = "";
     if (typeof wx === "number" && typeof wy === "number") {

@@ -229,7 +229,10 @@
     // kaybederse oyuncu ilerleyemez, kiosk kilitlenir): yakala + logla, finally'de
     // bir sonraki kareyi mutlaka planla.
     try {
-      const hand = (window.MA && window.MA.input && window.MA.input.hand) || null;
+      // Gizli ayar menüsü (S) açıkken el girdisi taramayı tetiklemesin.
+      const set = window.MA && window.MA.settings;
+      const hand = (set && set.isOpen()) ? null
+        : ((window.MA && window.MA.input && window.MA.input.hand) || null);
       if(hand){
         if(!hand.present) sawAbsent = true;
         if(hand.present && !handSeen){
